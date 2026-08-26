@@ -26,6 +26,21 @@ import MobileNav from '@/components/MobileNav';
 
 type AppModule = 'home' | 'attendance' | 'cgpa';
 
+interface NotificationToastProps {
+  notification: { type: 'success' | 'error'; message: string } | null;
+}
+
+function NotificationToast({ notification }: NotificationToastProps) {
+  if (!notification) return null;
+  return (
+    <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[100] animate-fade-in pointer-events-none">
+      <div className={`px-4 py-2.5 rounded-xl text-sm font-medium shadow-lg border max-w-[90vw] text-center ${
+        notification.type === 'success' ? 'bg-[#0A2A1A] text-[#4ADE80] border-[#22543D]' : 'bg-[#2A0A0A] text-[#F87171] border-[#7F1D1D]'
+      }`}>{notification.message}</div>
+    </div>
+  );
+}
+
 export default function Home() {
   // Module state
   const [activeModule, setActiveModule] = useState<AppModule>('home');
@@ -34,6 +49,13 @@ export default function Home() {
   const [currentPage, setCurrentPage] = useState<Page>('dashboard');
   const [isMounted, setIsMounted] = useState(false);
   const [target, setTarget] = useState(80);
+
+  // V2 UI Session states
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [initialSheetBackup, setInitialSheetBackup] = useState<AttendanceSheet | null>(null);
+  const [showExitConfirm, setShowExitConfirm] = useState(false);
+  const [showScreenshotExitConfirm, setShowScreenshotExitConfirm] = useState(false);
+  const [setupPhase, setSetupPhase] = useState<'landing' | 'form' | 'screenshot'>('landing');
 
   // Modal states
   const [isAddingSubject, setIsAddingSubject] = useState(false);
@@ -48,13 +70,23 @@ export default function Home() {
   useEffect(() => {
     migrateLegacyData();
     const allSheets = getSheets();
-    const curId = getCurrentSheetId();
-    const cur = curId ? allSheets.find(s => s.id === curId) || null : null;
-    setSheets(allSheets);
-    setCurrentSheet(cur);
-    setTarget(getTarget());
-    setIsMounted(true);
-    if (cur) setActiveModule('attendance');
+    const targetVal = getTarget();
+    
+    // Always start at home module on mount / refresh
+    exitCurrentSheet();
+    
+    // Defer state updates to avoid synchronous cascading renders warning
+    Promise.resolve().then(() => {
+      setSheets(allSheets);
+      setCurrentSheet(null);
+      setInitialSheetBackup(null);
+      setHasUnsavedChanges(false);
+      setTarget(targetVal);
+      setIsMounted(true);
+      setActiveModule('home');
+      setSetupPhase('landing');
+      setCurrentPage('dashboard');
+    });
   }, []);
 
   useEffect(() => {
@@ -81,6 +113,7 @@ export default function Home() {
       const updated = updater(prev);
       saveSheet(updated);
       refreshSheets();
+      setHasUnsavedChanges(true); // Mark changes as unsaved
       return updated;
     });
   }, [refreshSheets]);
@@ -98,6 +131,12 @@ export default function Home() {
     saveSheet(sheet);
     setCurrentSheetId(sheet.id);
     refreshSheets();
+    
+    // Track backup & session
+    setCurrentSheet(sheet);
+    setInitialSheetBackup(JSON.parse(JSON.stringify(sheet)));
+    setHasUnsavedChanges(false);
+    
     setCurrentPage('dashboard');
     setActiveModule('attendance');
   };
@@ -108,16 +147,80 @@ export default function Home() {
       saveSheet(sheet);
       setCurrentSheetId(sheet.id);
       refreshSheets();
+      
+      // Track backup & session
+      setCurrentSheet(sheet);
+      setInitialSheetBackup(JSON.parse(JSON.stringify(sheet)));
+      setHasUnsavedChanges(false);
+      
       setCurrentPage('dashboard');
       setActiveModule('attendance');
     });
   };
 
   // ===== Sheet Management =====
-  const handleOpenSheet = (id: string) => { openSheet(id); refreshSheets(); setCurrentPage('dashboard'); setActiveModule('attendance'); };
-  const handleExitSheet = () => { exitCurrentSheet(); setCurrentSheet(null); setCurrentPage('sheets'); refreshSheets(); };
-  const handleDeleteSheet = (id: string) => { deleteSheet(id); refreshSheets(); if (!getCurrentSheetId()) setCurrentSheet(null); notify('success', 'Sheet deleted'); };
-  const handleNewSheetConfirm = () => { setShowNewSheetConfirm(false); exitCurrentSheet(); setCurrentSheet(null); refreshSheets(); };
+  const handleOpenSheet = (id: string) => {
+    const sheet = openSheet(id);
+    refreshSheets();
+    if (sheet) {
+      setCurrentSheet(sheet);
+      setInitialSheetBackup(JSON.parse(JSON.stringify(sheet)));
+      setHasUnsavedChanges(false);
+    }
+    setCurrentPage('dashboard');
+    setActiveModule('attendance');
+  };
+
+  const triggerExit = useCallback(() => {
+    if (activeModule === 'cgpa') {
+      setActiveModule('home');
+    } else if (activeModule === 'attendance') {
+      if (currentSheet) {
+        if (hasUnsavedChanges) {
+          setShowExitConfirm(true);
+        } else {
+          exitCurrentSheet();
+          setCurrentSheet(null);
+          setInitialSheetBackup(null);
+          setHasUnsavedChanges(false);
+          setActiveModule('home');
+        }
+      } else {
+        if (setupPhase === 'screenshot') {
+          setShowScreenshotExitConfirm(true);
+        } else {
+          setSetupPhase('landing');
+          setActiveModule('home');
+          setCurrentPage('dashboard');
+        }
+      }
+    }
+  }, [activeModule, currentSheet, hasUnsavedChanges, setupPhase]);
+
+  const handleExitSheet = () => {
+    triggerExit();
+  };
+
+  const handleDeleteSheet = (id: string) => {
+    deleteSheet(id);
+    refreshSheets();
+    if (!getCurrentSheetId()) {
+      setCurrentSheet(null);
+      setInitialSheetBackup(null);
+      setHasUnsavedChanges(false);
+    }
+    notify('success', 'Sheet deleted');
+  };
+
+  const handleNewSheetConfirm = () => {
+    setShowNewSheetConfirm(false);
+    exitCurrentSheet();
+    setCurrentSheet(null);
+    setInitialSheetBackup(null);
+    setHasUnsavedChanges(false);
+    setSetupPhase('landing');
+    refreshSheets();
+  };
 
   // ===== Subject CRUD =====
   const handleAddSubject = (subject: Subject) => { updateSheet(s => ({ ...s, subjects: [...s.subjects, subject] })); setIsAddingSubject(false); notify('success', 'Subject added'); };
@@ -136,13 +239,6 @@ export default function Home() {
   const handleClearAll = () => { clearAllData(); setSheets([]); setCurrentSheet(null); setActiveModule('home'); notify('success', 'All data cleared'); };
 
   // ===== Notification toast =====
-  const NotificationToast = () => notification ? (
-    <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[100] animate-fade-in pointer-events-none">
-      <div className={`px-4 py-2.5 rounded-xl text-sm font-medium shadow-lg border max-w-[90vw] text-center ${
-        notification.type === 'success' ? 'bg-[#0A2A1A] text-[#4ADE80] border-[#22543D]' : 'bg-[#2A0A0A] text-[#F87171] border-[#7F1D1D]'
-      }`}>{notification.message}</div>
-    </div>
-  ) : null;
 
   // ===== LOADING =====
   if (!isMounted) {
@@ -164,7 +260,7 @@ export default function Home() {
     return (
       <div className="min-h-screen bg-[#000000] relative flex flex-col">
         <AtmosphericBackground />
-        <NotificationToast />
+        <NotificationToast notification={notification} />
 
         {/* Skip link for accessibility */}
         <a href="#main-content" className="skip-link">Skip to main content</a>
@@ -255,9 +351,9 @@ export default function Home() {
           <div className="min-h-screen bg-[#000000] relative">
             <AtmosphericBackground />
             <div className="bg-black/80 backdrop-blur-xl border-b border-[#1A1A1A] relative z-10">
-              <div className="flex items-center h-14 px-4">
-                <button onClick={() => setActiveModule('home')} className="text-[13px] text-[#666] hover:text-[#FFF] transition-smooth mr-3">← Home</button>
+              <div className="flex items-center h-14 px-4 justify-between">
                 <span className="text-[15px] text-[#FFF] tracking-tight font-medium">Attendance</span>
+                <button onClick={triggerExit} className="text-[13px] text-[#F87171] hover:text-[#FFF] border border-[#2A2A2C] px-3 py-1.5 rounded-full transition-smooth font-medium">Exit</button>
               </div>
             </div>
             <main className="app-container py-4 md:py-6 pb-8 relative z-10">
@@ -276,13 +372,15 @@ export default function Home() {
       return (
         <div className="min-h-screen bg-[#000000] relative">
           <AtmosphericBackground />
-          <NotificationToast />
+          <NotificationToast notification={notification} />
           <div className="bg-black/80 backdrop-blur-xl border-b border-[#1A1A1A] relative z-10">
-            <div className="flex items-center h-14 px-4">
-              <button onClick={() => setActiveModule('home')} className="text-[13px] text-[#666] hover:text-[#FFF] transition-smooth mr-3">← Home</button>
-              <span className="text-[15px] text-[#FFF] tracking-tight font-medium">Attendance</span>
+            <div className="flex items-center h-14 px-4 justify-between">
+              <div className="flex items-center gap-3">
+                <button onClick={triggerExit} className="text-[13px] text-[#F87171] hover:text-[#FFF] border border-[#2A2A2C] px-3 py-1 rounded-full transition-smooth font-medium">Exit</button>
+                <span className="text-[15px] text-[#FFF] tracking-tight font-medium">Attendance</span>
+              </div>
               {hasSheets && (
-                <button onClick={() => setCurrentPage('sheets')} className="ml-auto text-[13px] text-[#666] hover:text-[#FFF] transition-smooth">My Sheets</button>
+                <button onClick={() => setCurrentPage('sheets')} className="text-[13px] text-[#666] hover:text-[#FFF] transition-smooth">My Sheets</button>
               )}
             </div>
           </div>
@@ -292,6 +390,9 @@ export default function Home() {
               onLoadDemo={handleLoadDemo}
               onShowSheets={() => setCurrentPage('sheets')}
               hasExistingSheets={hasSheets}
+              phase={setupPhase}
+              setPhase={setSetupPhase}
+              onExit={triggerExit}
             />
           </div>
         </div>
@@ -339,18 +440,36 @@ export default function Home() {
 
     return (
       <div className="min-h-screen flex flex-col bg-[#000000] relative">
-        <NotificationToast />
+        <NotificationToast notification={notification} />
         <AtmosphericBackground />
 
         {/* Desktop header — hidden on mobile */}
         <header className="hidden md:block sticky top-0 z-50 bg-black/60 backdrop-blur-xl border-b border-[#1A1A1A]">
           <div className="app-container flex items-center justify-between h-14">
             <div className="flex items-center gap-3">
-              <button onClick={() => setActiveModule('home')} className="text-[13px] text-[#666] hover:text-[#FFF] transition-smooth">← Home</button>
+              <button onClick={triggerExit} className="text-[13px] text-[#F87171] hover:text-[#FFF] border border-[#2A2A2C] px-3 py-1.5 rounded-full transition-smooth font-medium animate-pulse">Exit</button>
               <span className="text-[15px] text-[#FFFFFF] tracking-tight font-medium">Attendance</span>
               <span className="text-[11px] text-[#666] font-medium bg-[#111] px-2 py-0.5 rounded-full max-w-[180px] truncate">{sheetLabel}</span>
+              {hasUnsavedChanges && (
+                <span className="text-[10px] text-[#FBBF24] bg-[#78350F]/20 border border-[#78350F]/30 px-2.5 py-0.5 rounded-full font-medium">Unsaved Changes</span>
+              )}
             </div>
             <nav className="flex items-center gap-1" role="navigation" aria-label="Attendance navigation">
+              {hasUnsavedChanges && (
+                <button
+                  onClick={() => {
+                    if (currentSheet) {
+                      saveSheet(currentSheet);
+                      setInitialSheetBackup(JSON.parse(JSON.stringify(currentSheet)));
+                      setHasUnsavedChanges(false);
+                      notify('success', 'Changes saved');
+                    }
+                  }}
+                  className="px-3.5 py-1.5 rounded-full bg-[#FFF] text-[#000] hover:bg-[#E5E5E5] text-[13px] font-semibold transition-smooth mr-2"
+                >
+                  Save
+                </button>
+              )}
               {attendanceNavItems.map(item => (
                 <button key={item.id} onClick={() => setCurrentPage(item.id as Page)}
                   className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-[13px] font-medium transition-smooth ${
@@ -371,8 +490,8 @@ export default function Home() {
               onClick: attendanceNavClickHandlers[item.id],
             }))}
             activeId={currentPage}
-            title={`Attendance · ${sheetLabel}`}
-            onHome={() => setActiveModule('home')}
+            title={`${sheetLabel}`}
+            onHome={triggerExit}
           />
         </div>
 
@@ -383,7 +502,7 @@ export default function Home() {
         {/* Subject form modal — full screen on mobile, centered on desktop */}
         {(isAddingSubject || editingSubject) && (
           <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4">
-            <SubjectForm subject={editingSubject || undefined} onSave={sub => editingSubject ? handleUpdateSubject(sub) : handleAddSubject(sub)} onCancel={() => { setIsAddingSubject(false); setEditingSubject(null); }} onDelete={editingSubject ? () => handleDeleteSubject(editingSubject.id) : undefined} />
+            <SubjectForm key={editingSubject?.id || 'new'} subject={editingSubject || undefined} onSave={sub => editingSubject ? handleUpdateSubject(sub) : handleAddSubject(sub)} onCancel={() => { setIsAddingSubject(false); setEditingSubject(null); }} onDelete={editingSubject ? () => handleDeleteSubject(editingSubject.id) : undefined} />
           </div>
         )}
 
@@ -401,6 +520,67 @@ export default function Home() {
               <div className="flex gap-3">
                 <button onClick={() => setShowNewSheetConfirm(false)} className="flex-1 bg-[#18181A] hover:bg-[#222] text-[#B0B0B0] font-semibold py-2.5 rounded-full text-[14px] transition-smooth">Cancel</button>
                 <button onClick={handleNewSheetConfirm} className="flex-1 bg-[#FFFFFF] hover:bg-[#E5E5E5] text-[#000] font-semibold py-2.5 rounded-full text-[14px] transition-smooth">Save & Start New</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Unsaved changes exit confirmation */}
+        {showExitConfirm && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[70] flex items-center justify-center p-4">
+            <div className="bg-[#111] border border-[#2A2A2C] rounded-2xl w-full max-w-sm p-6">
+              <h3 className="font-[family-name:var(--font-newsreader)] text-xl text-[#FFF] mb-2">Leave this sheet?</h3>
+              <p className="text-[14px] text-[#949494] mb-6">You have unsaved changes in this attendance sheet.</p>
+              <div className="flex flex-col gap-2">
+                <button onClick={() => {
+                  if (currentSheet) {
+                    saveSheet(currentSheet);
+                  }
+                  setHasUnsavedChanges(false);
+                  setShowExitConfirm(false);
+                  exitCurrentSheet();
+                  setCurrentSheet(null);
+                  setInitialSheetBackup(null);
+                  setActiveModule('home');
+                  refreshSheets();
+                }} className="w-full bg-[#FFFFFF] hover:bg-[#E5E5E5] text-[#000] font-semibold py-2.5 rounded-full text-[14px] transition-smooth">
+                  Save & Exit
+                </button>
+                <button onClick={() => {
+                  if (initialSheetBackup) {
+                    saveSheet(initialSheetBackup);
+                  }
+                  setHasUnsavedChanges(false);
+                  setShowExitConfirm(false);
+                  exitCurrentSheet();
+                  setCurrentSheet(null);
+                  setInitialSheetBackup(null);
+                  setActiveModule('home');
+                  refreshSheets();
+                }} className="w-full bg-[#18181A] hover:bg-[#222] text-[#F87171] border border-[#7F1D1D]/25 font-semibold py-2.5 rounded-full text-[14px] transition-smooth">
+                  Exit Without Saving
+                </button>
+                <button onClick={() => setShowExitConfirm(false)} className="w-full bg-[#18181A] hover:bg-[#222] text-[#B0B0B0] font-semibold py-2.5 rounded-full text-[14px] transition-smooth">
+                  Stay
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Screenshot import exit confirmation */}
+        {showScreenshotExitConfirm && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[70] flex items-center justify-center p-4">
+            <div className="bg-[#111] border border-[#2A2A2C] rounded-2xl w-full max-w-sm p-6">
+              <h3 className="font-[family-name:var(--font-newsreader)] text-xl text-[#FFF] mb-2">Leave screenshot import?</h3>
+              <p className="text-[14px] text-[#949494] mb-6">Your temporary upload and OCR progress will be discarded.</p>
+              <div className="flex gap-3">
+                <button onClick={() => setShowScreenshotExitConfirm(false)} className="flex-1 bg-[#18181A] hover:bg-[#222] text-[#B0B0B0] font-semibold py-2.5 rounded-full text-[14px] transition-smooth">Continue</button>
+                <button onClick={() => {
+                  setShowScreenshotExitConfirm(false);
+                  setSetupPhase('landing');
+                  setActiveModule('home');
+                }} className="flex-1 bg-[#F87171] hover:bg-[#EF4444] text-[#000] font-semibold py-2.5 rounded-full text-[14px] transition-smooth">Exit</button>
               </div>
             </div>
           </div>
@@ -429,20 +609,16 @@ export default function Home() {
       }
     };
 
-    const cgpaNavItems = [
-      { id: 'cgpa-main', label: 'GPA / CGPA', icon: <GraduationCap size={18} /> },
-    ];
-
     return (
       <div className="min-h-screen bg-[#000000] relative">
         <AtmosphericBackground />
-        <NotificationToast />
+        <NotificationToast notification={notification} />
 
         {/* CGPA header — same for mobile and desktop */}
         <div className="bg-black/80 backdrop-blur-xl border-b border-[#1A1A1A] relative z-10">
-          <div className="flex items-center h-14 px-4">
-            <button onClick={() => setActiveModule('home')} className="text-[13px] text-[#666] hover:text-[#FFF] transition-smooth mr-3">← Home</button>
+          <div className="flex items-center h-14 px-4 justify-between">
             <span className="text-[15px] text-[#FFF] tracking-tight font-medium">GPA / CGPA</span>
+            <button onClick={triggerExit} className="text-[13px] text-[#F87171] hover:text-[#FFF] border border-[#2A2A2C] px-3 py-1.5 rounded-full transition-smooth font-medium">Exit</button>
           </div>
         </div>
 

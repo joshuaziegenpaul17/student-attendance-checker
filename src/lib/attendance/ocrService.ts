@@ -113,17 +113,34 @@ export async function performOCR(
     onProgress?.({ stage: 'calculating', message: 'Calculating attendance…', progress: 92 });
 
     // Extract spatial data
+    interface TesseractPageWithSpatialData {
+      width?: number;
+      image_width?: number;
+      height?: number;
+      image_height?: number;
+      lines?: Array<{
+        text?: string;
+        bbox?: { x0: number; y0: number; x1: number; y1: number };
+        words?: Array<{
+          text?: string;
+          confidence?: number;
+          bbox?: { x0: number; y0: number; x1: number; y1: number };
+        }>;
+      }>;
+    }
+
     const text = result.data.text;
     const confidence = result.data.confidence;
-    const imgW = (result.data as any).width || (result.data as any).image_width || 0;
-    const imgH = (result.data as any).height || (result.data as any).image_height || 0;
+    const data = result.data as unknown as TesseractPageWithSpatialData;
+    const imgW = data.width || data.image_width || 0;
+    const imgH = data.height || data.image_height || 0;
 
     // Build structured lines with bounding boxes
     const lines: OCRLine[] = [];
     const allWords: OCRWord[] = [];
 
     // Use words from lines
-    const dataLines = (result.data as any).lines || [];
+    const dataLines = data.lines || [];
     for (const line of dataLines) {
       const lineWords: OCRWord[] = [];
       const words = line.words || [];

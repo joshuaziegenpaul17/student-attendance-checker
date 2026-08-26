@@ -13,21 +13,13 @@ interface SubjectFormProps {
 }
 
 export default function SubjectForm({ subject, onSave, onCancel, onDelete }: SubjectFormProps) {
-  const [code, setCode] = useState('');
-  const [name, setName] = useState('');
-  const [category, setCategory] = useState<SubjectCategory>('Other');
-  const [totalHours, setTotalHours] = useState<number | ''>('');
-  const [presentHours, setPresentHours] = useState<number | ''>('');
-  const [absentHours, setAbsentHours] = useState<number | ''>('');
-  const [clHours, setClHours] = useState<number | ''>('');
-
-  useEffect(() => {
-    if (subject) {
-      setCode(subject.code); setName(subject.name); setCategory(subject.category || 'Other');
-      setTotalHours(subject.totalHours); setPresentHours(subject.presentHours);
-      setAbsentHours(subject.absentHours); setClHours(subject.clHours);
-    }
-  }, [subject]);
+  const [code, setCode] = useState(subject ? subject.code : '');
+  const [name, setName] = useState(subject ? subject.name : '');
+  const [category, setCategory] = useState<SubjectCategory>(subject ? subject.category || 'Other' : 'Other');
+  const [totalHours, setTotalHours] = useState<number | ''>(subject ? subject.totalHours : '');
+  const [presentHours, setPresentHours] = useState<number | ''>(subject ? subject.presentHours : '');
+  const [absentHours, setAbsentHours] = useState<number | ''>(subject ? subject.absentHours : '');
+  const [clHours, setClHours] = useState<number | ''>(subject ? subject.clHours : '');
 
   const t = totalHours === '' ? 0 : Number(totalHours);
   const p = presentHours === '' ? 0 : Number(presentHours);

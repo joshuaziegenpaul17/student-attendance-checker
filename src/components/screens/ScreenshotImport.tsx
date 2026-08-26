@@ -9,16 +9,16 @@ import { Upload, Check, AlertTriangle, Edit3, Trash2, Plus, ChevronDown, Chevron
 interface ScreenshotImportProps {
   onImport: (subjects: Subject[], monthly: MonthlyAttendance[]) => void;
   onCancel: () => void;
+  onExit?: () => void;
 }
 
 type ImportStage = 'upload' | 'preview' | 'analyzing' | 'results' | 'error';
 
-export default function ScreenshotImport({ onImport, onCancel }: ScreenshotImportProps) {
+export default function ScreenshotImport({ onImport, onCancel, onExit }: ScreenshotImportProps) {
   const [stage, setStage] = useState<ImportStage>('upload');
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [progress, setProgress] = useState<OCRProgress>({ stage: 'reading', message: '', progress: 0 });
-  const [parseResult, setParseResult] = useState<ParseResult | null>(null);
   const [editSubjects, setEditSubjects] = useState<ParsedSubject[]>([]);
   const [editMonthly, setEditMonthly] = useState<ParsedMonthly[]>([]);
   const [error, setError] = useState<string>('');
@@ -61,7 +61,6 @@ export default function ScreenshotImport({ onImport, onCancel }: ScreenshotImpor
     try {
       const ocrResult = await performOCR(imageFile, setProgress);
       const parsed = parseOCRText(ocrResult.text, ocrResult.lines, ocrResult.words);
-      setParseResult(parsed);
       setEditSubjects([...parsed.subjects]);
       setEditMonthly([...parsed.monthly]);
       setStage('results');
@@ -117,13 +116,18 @@ export default function ScreenshotImport({ onImport, onCancel }: ScreenshotImpor
   if (stage === 'upload') {
     return (
       <div className="space-y-6 animate-slide-up">
-        <div>
-          <h2 className="font-[family-name:var(--font-newsreader)] text-2xl md:text-3xl text-[#FFFFFF] font-light mb-2">
-            Upload Attendance Screenshot
-          </h2>
-          <p className="text-[14px] text-[#949494]">
-            Don&apos;t want to enter subjects manually? Upload a screenshot of your Attendance Details table.
-          </p>
+        <div className="flex justify-between items-start">
+          <div>
+            <h2 className="font-[family-name:var(--font-newsreader)] text-2xl md:text-3xl text-[#FFFFFF] font-light mb-2">
+              Upload Attendance Screenshot
+            </h2>
+            <p className="text-[14px] text-[#949494]">
+              Don&apos;t want to enter subjects manually? Upload a screenshot of your Attendance Details table.
+            </p>
+          </div>
+          {onExit && (
+            <button onClick={onExit} className="ml-4 text-[13px] text-[#F87171] hover:text-[#FFF] border border-[#2A2A2C] px-3 py-1 rounded-full transition-smooth font-medium shrink-0">Exit</button>
+          )}
         </div>
 
         {/* Drop zone */}
@@ -196,9 +200,14 @@ export default function ScreenshotImport({ onImport, onCancel }: ScreenshotImpor
   if (stage === 'preview') {
     return (
       <div className="space-y-6 animate-slide-up">
-        <div>
-          <h2 className="font-[family-name:var(--font-newsreader)] text-2xl md:text-3xl text-[#FFFFFF] font-light mb-2">Preview Screenshot</h2>
-          <p className="text-[14px] text-[#949494]">Review your image before we analyze it.</p>
+        <div className="flex justify-between items-start">
+          <div>
+            <h2 className="font-[family-name:var(--font-newsreader)] text-2xl md:text-3xl text-[#FFFFFF] font-light mb-2">Preview Screenshot</h2>
+            <p className="text-[14px] text-[#949494]">Review your image before we analyze it.</p>
+          </div>
+          {onExit && (
+            <button onClick={onExit} className="ml-4 text-[13px] text-[#F87171] hover:text-[#FFF] border border-[#2A2A2C] px-3 py-1 rounded-full transition-smooth font-medium shrink-0">Exit</button>
+          )}
         </div>
 
         <div className="card p-3 overflow-hidden rounded-2xl">
@@ -238,8 +247,11 @@ export default function ScreenshotImport({ onImport, onCancel }: ScreenshotImpor
 
     return (
       <div className="space-y-8 animate-slide-up">
-        <div className="text-center">
-          <h2 className="font-[family-name:var(--font-newsreader)] text-2xl md:text-3xl text-[#FFFFFF] font-light mb-2">Reading your attendance…</h2>
+        <div className="flex justify-between items-center mb-2">
+          <h2 className="font-[family-name:var(--font-newsreader)] text-2xl md:text-3xl text-[#FFFFFF] font-light">Reading your attendance…</h2>
+          {onExit && (
+            <button onClick={onExit} className="ml-4 text-[13px] text-[#F87171] hover:text-[#FFF] border border-[#2A2A2C] px-3 py-1 rounded-full transition-smooth font-medium shrink-0">Exit</button>
+          )}
         </div>
 
         <div className="card p-6 space-y-4">
@@ -276,13 +288,18 @@ export default function ScreenshotImport({ onImport, onCancel }: ScreenshotImpor
   // ─── Error Stage ───────────────────────────────────
   if (stage === 'error') {
     return (
-      <div className="space-y-6 text-center animate-slide-up">
-        <div className="w-16 h-16 rounded-full bg-[#2A0A0A] border border-[#7F1D1D] flex items-center justify-center mx-auto">
-          <AlertTriangle size={24} className="text-[#F87171]" />
+      <div className="space-y-6 animate-slide-up">
+        <div className="flex justify-between items-start text-left mb-4">
+          <div>
+            <h2 className="font-[family-name:var(--font-newsreader)] text-2xl text-[#FFFFFF] font-light mb-2">Couldn&apos;t read screenshot</h2>
+            <p className="text-[14px] text-[#949494]">{error}</p>
+          </div>
+          {onExit && (
+            <button onClick={onExit} className="ml-4 text-[13px] text-[#F87171] hover:text-[#FFF] border border-[#2A2A2C] px-3 py-1 rounded-full transition-smooth font-medium shrink-0">Exit</button>
+          )}
         </div>
-        <div>
-          <h2 className="font-[family-name:var(--font-newsreader)] text-2xl text-[#FFFFFF] font-light mb-2">Couldn&apos;t read screenshot</h2>
-          <p className="text-[14px] text-[#949494]">{error}</p>
+        <div className="w-16 h-16 rounded-full bg-[#2A0A0A] border border-[#7F1D1D] flex items-center justify-center mx-auto my-4">
+          <AlertTriangle size={24} className="text-[#F87171]" />
         </div>
         <div className="flex gap-3 max-w-sm mx-auto">
           <button onClick={() => { setStage('upload'); setImageFile(null); setImagePreview(null); setError(''); }}
@@ -315,15 +332,20 @@ export default function ScreenshotImport({ onImport, onCancel }: ScreenshotImpor
 
   return (
     <div className="space-y-6 animate-slide-up">
-      <div>
-        <h2 className="font-[family-name:var(--font-newsreader)] text-2xl md:text-3xl text-[#FFFFFF] font-light mb-2">
-          Attendance Found
-        </h2>
-        <p className="text-[14px] text-[#949494]">
-          {hasSubjects ? `${editSubjects.length} subject${editSubjects.length !== 1 ? 's' : ''}` : 'No subjects'}
-          {hasMonthly ? ` • ${editMonthly.length} month${editMonthly.length !== 1 ? 's' : ''}` : ''}
-          {' '}detected. Review before importing.
-        </p>
+      <div className="flex justify-between items-start">
+        <div>
+          <h2 className="font-[family-name:var(--font-newsreader)] text-2xl md:text-3xl text-[#FFFFFF] font-light mb-2">
+            Attendance Found
+          </h2>
+          <p className="text-[14px] text-[#949494]">
+            {hasSubjects ? `${editSubjects.length} subject${editSubjects.length !== 1 ? 's' : ''}` : 'No subjects'}
+            {hasMonthly ? ` • ${editMonthly.length} month${editMonthly.length !== 1 ? 's' : ''}` : ''}
+            {' '}detected. Review before importing.
+          </p>
+        </div>
+        {onExit && (
+          <button onClick={onExit} className="ml-4 text-[13px] text-[#F87171] hover:text-[#FFF] border border-[#2A2A2C] px-3 py-1 rounded-full transition-smooth font-medium shrink-0">Exit</button>
+        )}
       </div>
 
       {/* ── SECTION 1: SUBJECT ATTENDANCE ── */}
@@ -398,16 +420,16 @@ export default function ScreenshotImport({ onImport, onCancel }: ScreenshotImpor
                     </div>
                   </div>
                   <div className="grid grid-cols-4 gap-2">
-                    {[
+                    {([
                       { label: 'Total', field: 'totalHours' },
                       { label: 'Present', field: 'presentHours' },
                       { label: 'Absent', field: 'absentHours' },
                       { label: 'CL', field: 'clHours' },
-                    ].map(f => (
+                    ] as const).map(f => (
                       <div key={f.field}>
                         <label className="text-[11px] text-[#555] uppercase tracking-[0.1em] mb-1 block">{f.label}</label>
-                        <input type="number" min="0" value={(sub as any)[f.field]}
-                          onChange={e => { const v = parseInt(e.target.value); updateSubject(i, f.field as any, isNaN(v) ? 0 : v); }}
+                        <input type="number" min="0" value={sub[f.field]}
+                          onChange={e => { const v = parseInt(e.target.value); updateSubject(i, f.field, isNaN(v) ? 0 : v); }}
                           className="w-full bg-[#111] border border-[#2A2A2C] rounded-lg px-3 py-2 text-[13px] text-[#FFF] outline-none focus:border-[#555] transition-smooth" />
                       </div>
                     ))}

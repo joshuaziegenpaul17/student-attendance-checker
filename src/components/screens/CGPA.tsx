@@ -7,6 +7,10 @@ import { Plus, Trash2, ChevronDown, ChevronRight, Calculator, GraduationCap, Edi
 
 interface CGPAScreenProps { cgpaData: CGPAData; onCGPAChange: (data: CGPAData) => void; }
 
+const generateId = (prefix: string): string => {
+  return `${prefix}_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+};
+
 export default function CGPAScreen({ cgpaData, onCGPAChange }: CGPAScreenProps) {
   const [activeSemId, setActiveSemId] = useState<string | null>(cgpaData.semesters.length > 0 ? cgpaData.semesters[0].id : null);
   const [expandedCats, setExpandedCats] = useState<Set<string>>(new Set());
@@ -23,19 +27,27 @@ export default function CGPAScreen({ cgpaData, onCGPAChange }: CGPAScreenProps) 
   const cgpaResult = useMemo(() => calculateCGPA(cgpaData.semesters, true), [cgpaData]);
   const activeSem = cgpaData.semesters.find(s => s.id === activeSemId) || null;
 
-  const toggleCat = (id: string) => setExpandedCats(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  const toggleCat = (id: string) => setExpandedCats(prev => {
+    const n = new Set(prev);
+    if (n.has(id)) {
+      n.delete(id);
+    } else {
+      n.add(id);
+    }
+    return n;
+  });
   const resetForm = () => { setFName(''); setFCode(''); setFCredits(''); setFMarks(''); setFError(''); setEditingSub(null); setShowAddSub(null); };
 
   const addSem = () => {
     const n = cgpaData.semesters.length + 1;
     const y = Math.ceil(n / 2); const ry = y === 1 ? 'I' : y === 2 ? 'II' : String(y);
-    const sem: CGPASemester = { id: `sem${Date.now()}`, label: `Semester ${n}`, year: `Year ${ry}`, categories: [] };
+    const sem: CGPASemester = { id: generateId('sem'), label: `Semester ${n}`, year: `Year ${ry}`, categories: [] };
     onCGPAChange({ semesters: [...cgpaData.semesters, sem] }); setActiveSemId(sem.id);
   };
 
   const addCatWithName = (name: SubjectCategory) => {
     if (!activeSem) return;
-    const cat: CGPACategory = { id: `cat${Date.now()}`, name, includeInGPA: true, includeInCGPA: true, subjects: [] };
+    const cat: CGPACategory = { id: generateId('cat'), name, includeInGPA: true, includeInCGPA: true, subjects: [] };
     onCGPAChange({ semesters: cgpaData.semesters.map(s => s.id === activeSemId ? { ...s, categories: [...s.categories, cat] } : s) });
     setExpandedCats(prev => new Set(prev).add(cat.id)); setShowAddCat(false);
   };
@@ -48,7 +60,7 @@ export default function CGPAScreen({ cgpaData, onCGPAChange }: CGPAScreenProps) 
     if (fCredits === '' || Number(fCredits) <= 0) { setFError('Credits > 0.'); return; }
     if (fMarks === '' || Number(fMarks) < 0 || Number(fMarks) > 100) { setFError('Marks 0–100.'); return; }
     const gp = getGradeFromMarks(Number(fMarks));
-    const sub: CGPASubject = { id: editingSub || `sub${Date.now()}`, name: fName.trim(), code: fCode.trim().toUpperCase(), credits: Number(fCredits), marks: Number(fMarks), gradePoint: gp.gradePoint, letterGrade: gp.letterGrade };
+    const sub: CGPASubject = { id: editingSub || generateId('sub'), name: fName.trim(), code: fCode.trim().toUpperCase(), credits: Number(fCredits), marks: Number(fMarks), gradePoint: gp.gradePoint, letterGrade: gp.letterGrade };
     onCGPAChange({ semesters: cgpaData.semesters.map(s => s.id === activeSemId ? { ...s, categories: s.categories.map(c => c.id === cid ? { ...c, subjects: editingSub ? c.subjects.map(x => x.id === editingSub ? sub : x) : [...c.subjects, sub] } : c) } : s) });
     resetForm();
   };

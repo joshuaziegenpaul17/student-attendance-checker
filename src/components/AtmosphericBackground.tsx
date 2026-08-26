@@ -259,6 +259,7 @@ export default function AtmosphericBackground() {
 
   // ─── DRAW ──────────────────────────────────────────
   const draw = useCallback((ctx: CanvasRenderingContext2D, w: number, h: number) => {
+    /* eslint-disable react-hooks/immutability */
     const s = stateRef.current;
     if (!s || !s.initialized) return;
 
@@ -661,6 +662,7 @@ export default function AtmosphericBackground() {
       ctx.stroke();
     }
     ctx.lineCap = 'butt';
+    /* eslint-enable react-hooks/immutability */
   }, []);
 
   // ─── EFFECT ────────────────────────────────────────

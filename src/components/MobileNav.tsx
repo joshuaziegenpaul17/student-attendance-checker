@@ -47,8 +47,8 @@ export default function MobileNav({ items, activeId, title, onHome }: MobileNavP
         <div className="flex items-center justify-between h-14 px-4">
           <div className="flex items-center gap-3">
             {onHome && (
-              <button onClick={onHome} className="text-[13px] text-[#666] hover:text-[#FFF] transition-smooth">
-                ← Home
+              <button onClick={onHome} className="text-[13px] text-[#F87171] hover:text-[#FFF] border border-[#2A2A2C] px-2.5 py-1 rounded-full transition-smooth font-medium">
+                Exit
               </button>
             )}
             <span className="text-[15px] text-[#FFFFFF] tracking-tight font-medium">{title}</span>
@@ -105,6 +105,18 @@ export default function MobileNav({ items, activeId, title, onHome }: MobileNavP
               <span className="text-[14px] font-medium">{item.label}</span>
             </button>
           ))}
+          {onHome && (
+            <button
+              onClick={() => {
+                setIsOpen(false);
+                onHome();
+              }}
+              className="w-full flex items-center gap-3 px-5 py-3 text-left transition-smooth text-[#F87171] hover:bg-[#2A0A0A] hover:text-[#FFAAAA] border-t border-[#1A1A1A]/40 mt-2"
+            >
+              <span className="text-[#F87171]"><Home size={18} /></span>
+              <span className="text-[14px] font-medium">Exit to Home</span>
+            </button>
+          )}
         </div>
 
         {/* Menu footer */}

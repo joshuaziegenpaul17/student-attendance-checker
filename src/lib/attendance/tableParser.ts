@@ -445,7 +445,7 @@ function extractMonthlyWithSpatialData(rows: OCRWord[][]): ParsedMonthly[] {
     const monthMatch = rowText.match(MONTH_RE);
     if (!monthMatch) continue;
 
-    let monthName = monthMatch[1];
+    const monthName = monthMatch[1];
     let year = monthMatch[2];
     if (year.length === 2) year = '20' + year;
     const monthKey = `${monthName.substring(0, 3)}-${year}`;
@@ -646,7 +646,7 @@ function extractMonthlyFromLines(lines: string[]): ParsedMonthly[] {
     const monthMatch = line.match(MONTH_RE);
     if (!monthMatch) continue;
 
-    let monthName = monthMatch[1];
+    const monthName = monthMatch[1];
     let year = monthMatch[2];
     if (year.length === 2) year = '20' + year;
     const monthKey = `${monthName.substring(0, 3)}-${year}`;

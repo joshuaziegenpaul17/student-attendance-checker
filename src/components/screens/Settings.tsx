@@ -104,16 +104,16 @@ export default function SettingsScreen({ profile, target, onProfileUpdate, onTar
             <div>
               <label className={labelClass}>Level</label>
               <div className="grid grid-cols-2 gap-2">
-                <button type="button" onClick={() => handleEditChange({ target: { name: 'level', value: 'UG' } } as any)}
+                <button type="button" onClick={() => setEditProfile(prev => ({ ...prev, level: 'UG', year: '', semester: '', programme: '' }))}
                   className={`py-2.5 rounded-full text-[14px] font-medium transition-smooth border ${editProfile.level === 'UG' ? 'bg-[#FFF] text-[#000] border-[#FFF]' : 'bg-[#111] text-[#949494] border-[#2A2A2C]'}`}>UG</button>
-                <button type="button" onClick={() => handleEditChange({ target: { name: 'level', value: 'PG' } } as any)}
+                <button type="button" onClick={() => setEditProfile(prev => ({ ...prev, level: 'PG', year: '', semester: '', programme: '' }))}
                   className={`py-2.5 rounded-full text-[14px] font-medium transition-smooth border ${editProfile.level === 'PG' ? 'bg-[#FFF] text-[#000] border-[#FFF]' : 'bg-[#111] text-[#949494] border-[#2A2A2C]'}`}>PG</button>
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div><label className={labelClass}>Academic Year</label><input type="text" value={editProfile.academicYear || ''} onChange={e => setEditProfile(p => ({ ...p, academicYear: e.target.value }))} className={inputClass} /></div>
               <div><label className={labelClass}>Programme</label>
-                <select name="programme" value={editProfile.programme && programmes.includes(editProfile.programme as any) ? editProfile.programme : ''} onChange={handleEditChange} disabled={!editProfile.level} className={inputClass}>
+                <select name="programme" value={editProfile.programme && (programmes as readonly string[]).includes(editProfile.programme) ? editProfile.programme : ''} onChange={handleEditChange} disabled={!editProfile.level} className={inputClass}>
                   <option value="">Select</option>{programmes.map(p => <option key={p} value={p}>{p}</option>)}
                 </select>
               </div>

@@ -9,12 +9,16 @@ export function useAnimatedNumber(
   enabled: boolean = true
 ): number {
   const [value, setValue] = useState(enabled ? 0 : target);
+  const [prev, setPrev] = useState({ target, enabled });
   const frameRef = useRef<number>(0);
-  const startRef = useRef<number>(0);
+
+  if (target !== prev.target || enabled !== prev.enabled) {
+    setPrev({ target, enabled });
+    setValue(enabled ? 0 : target);
+  }
 
   useEffect(() => {
     if (!enabled) {
-      setValue(target);
       return;
     }
 
@@ -35,7 +39,6 @@ export function useAnimatedNumber(
         }
       };
 
-      startRef.current = performance.now();
       frameRef.current = requestAnimationFrame(animate);
     }, delay);
 

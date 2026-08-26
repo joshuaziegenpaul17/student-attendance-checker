@@ -6,10 +6,13 @@ import { ArrowRight, Upload } from 'lucide-react';
 import ScreenshotImport from '@/components/screens/ScreenshotImport';
 
 interface SetupFlowProps {
-  onComplete: (profile: StudentProfile, sheetName?: string, initialSubjects?: any[], initialMonthly?: MonthlyAttendance[]) => void;
+  onComplete: (profile: StudentProfile, sheetName?: string, initialSubjects?: Subject[], initialMonthly?: MonthlyAttendance[]) => void;
   onLoadDemo: () => void;
   onShowSheets?: () => void;
   hasExistingSheets?: boolean;
+  phase: 'landing' | 'form' | 'screenshot';
+  setPhase: (phase: 'landing' | 'form' | 'screenshot') => void;
+  onExit: () => void;
 }
 
 const UG_PROGRAMMES = ['B.Sc.', 'B.Com.', 'BCA', 'BBA', 'Other'] as const;
@@ -38,8 +41,7 @@ function generateSheetName(profile: StudentProfile): string {
   return parts.join(' · ') || 'New Sheet';
 }
 
-export default function SetupFlow({ onComplete, onLoadDemo, onShowSheets, hasExistingSheets }: SetupFlowProps) {
-  const [phase, setPhase] = useState<'landing' | 'form' | 'screenshot'>('landing');
+export default function SetupFlow({ onComplete, onLoadDemo, onShowSheets, hasExistingSheets, phase, setPhase, onExit }: SetupFlowProps) {
   const [sheetName, setSheetName] = useState('');
   const [profile, setProfile] = useState<StudentProfile>({
     college: 'Loyola College, Chennai',
@@ -133,6 +135,7 @@ export default function SetupFlow({ onComplete, onLoadDemo, onShowSheets, hasExi
             <ScreenshotImport
               onImport={(subjects, monthly) => handleScreenshotImport(subjects, monthly)}
               onCancel={() => setPhase('form')}
+              onExit={onExit}
             />
             <div className="text-center mt-6">
               <button onClick={() => setPhase('form')}
@@ -181,11 +184,11 @@ export default function SetupFlow({ onComplete, onLoadDemo, onShowSheets, hasExi
             <div>
               <label className={labelClass}>Programme Level</label>
               <div className="grid grid-cols-2 gap-2">
-                <button type="button" onClick={() => handleChange({ target: { name: 'level', value: 'UG' } } as any)}
+                <button type="button" onClick={() => setProfile(prev => ({ ...prev, level: 'UG', year: '', semester: '', programme: '' }))}
                   className={`py-3 rounded-full text-[15px] font-medium transition-smooth border ${
                     profile.level === 'UG' ? 'bg-[#FFFFFF] text-[#000] border-[#FFFFFF]' : 'bg-[#111] text-[#949494] border-[#2A2A2C] hover:border-[#555]'
                   }`}>UG</button>
-                <button type="button" onClick={() => handleChange({ target: { name: 'level', value: 'PG' } } as any)}
+                <button type="button" onClick={() => setProfile(prev => ({ ...prev, level: 'PG', year: '', semester: '', programme: '' }))}
                   className={`py-3 rounded-full text-[15px] font-medium transition-smooth border ${
                     profile.level === 'PG' ? 'bg-[#FFFFFF] text-[#000] border-[#FFFFFF]' : 'bg-[#111] text-[#949494] border-[#2A2A2C] hover:border-[#555]'
                   }`}>PG</button>
@@ -222,13 +225,13 @@ export default function SetupFlow({ onComplete, onLoadDemo, onShowSheets, hasExi
             <div>
               <label className={labelClass}>Programme</label>
               <select name="programme"
-                value={profile.programme && programmes.includes(profile.programme as any) ? profile.programme : profile.programme ? 'Other' : ''}
+                value={profile.programme && (programmes as readonly string[]).includes(profile.programme) ? profile.programme : profile.programme ? 'Other' : ''}
                 onChange={handleChange} disabled={!profile.level}
                 className={`${inputClass} ${!profile.level ? 'opacity-50 cursor-not-allowed' : ''}`}>
                 <option value="">{profile.level ? 'Select programme' : 'Select level first'}</option>
                 {programmes.map(p => <option key={p} value={p}>{p}</option>)}
               </select>
-              {profile.programme && !programmes.includes(profile.programme as any) && profile.programme !== '' && (
+              {profile.programme && !(programmes as readonly string[]).includes(profile.programme) && profile.programme !== '' && (
                 <input type="text" value={programmeOther || profile.programme}
                   onChange={e => { setProgrammeOther(e.target.value); setProfile(prev => ({ ...prev, programme: e.target.value })); }}
                   placeholder="Enter your programme" className={`${inputClass} mt-2`} />
