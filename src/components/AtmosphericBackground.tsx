@@ -308,28 +308,43 @@ export default function AtmosphericBackground() {
     const stormY = h * 0.28 + my * 4 - scrollFrac * 5;
 
     ctx.save();
-    ctx.filter = 'blur(55px)';
     // Cloud mass 1
     ctx.globalAlpha = 0.22 * stormPulse;
-    ctx.fillStyle = '#1A2844';
+    const sg1 = ctx.createRadialGradient(w * 0.4 + stormX, stormY, 0, w * 0.4 + stormX, stormY, w * 0.48);
+    sg1.addColorStop(0, '#1A2844');
+    sg1.addColorStop(0.5, '#1A2844');
+    sg1.addColorStop(1, 'transparent');
+    ctx.fillStyle = sg1;
     ctx.beginPath();
     ctx.ellipse(w * 0.4 + stormX, stormY, w * 0.48, h * 0.18, 0, 0, Math.PI * 2);
     ctx.fill();
     // Cloud mass 2
     ctx.globalAlpha = 0.16 * stormPulse;
-    ctx.fillStyle = '#1E3050';
+    const sg2 = ctx.createRadialGradient(w * 0.68 + stormX * 0.7, stormY + 25, 0, w * 0.68 + stormX * 0.7, stormY + 25, w * 0.38);
+    sg2.addColorStop(0, '#1E3050');
+    sg2.addColorStop(0.5, '#1E3050');
+    sg2.addColorStop(1, 'transparent');
+    ctx.fillStyle = sg2;
     ctx.beginPath();
     ctx.ellipse(w * 0.68 + stormX * 0.7, stormY + 25, w * 0.38, h * 0.15, 0, 0, Math.PI * 2);
     ctx.fill();
     // Cloud mass 3
     ctx.globalAlpha = 0.13 * stormPulse;
-    ctx.fillStyle = '#15203A';
+    const sg3 = ctx.createRadialGradient(w * 0.28 + stormX * 0.5, stormY + 50, 0, w * 0.28 + stormX * 0.5, stormY + 50, w * 0.32);
+    sg3.addColorStop(0, '#15203A');
+    sg3.addColorStop(0.5, '#15203A');
+    sg3.addColorStop(1, 'transparent');
+    ctx.fillStyle = sg3;
     ctx.beginPath();
     ctx.ellipse(w * 0.28 + stormX * 0.5, stormY + 50, w * 0.32, h * 0.12, 0, 0, Math.PI * 2);
     ctx.fill();
     // Cloud mass 4 — upper wispy
     ctx.globalAlpha = 0.08 * stormPulse;
-    ctx.fillStyle = '#1E2E50';
+    const sg4 = ctx.createRadialGradient(w * 0.55 + stormX * 0.3, stormY - 30, 0, w * 0.55 + stormX * 0.3, stormY - 30, w * 0.55);
+    sg4.addColorStop(0, '#1E2E50');
+    sg4.addColorStop(0.5, '#1E2E50');
+    sg4.addColorStop(1, 'transparent');
+    ctx.fillStyle = sg4;
     ctx.beginPath();
     ctx.ellipse(w * 0.55 + stormX * 0.3, stormY - 30, w * 0.55, h * 0.08, 0, 0, Math.PI * 2);
     ctx.fill();
@@ -540,18 +555,31 @@ export default function AtmosphericBackground() {
       const cy = c.y + my * 3;
 
       ctx.save();
-      ctx.filter = `blur(${c.blur}px)`;
       ctx.globalAlpha = c.opacity;
-      // Multi-shape cloud mass
-      ctx.fillStyle = c.color;
+      // Multi-shape cloud mass using radial gradients for softness
+      const gMain = ctx.createRadialGradient(cx, cy, 0, cx, cy, c.width * 0.5);
+      gMain.addColorStop(0, c.color);
+      gMain.addColorStop(0.5, c.color);
+      gMain.addColorStop(1, 'transparent');
+      ctx.fillStyle = gMain;
       ctx.beginPath();
       ctx.ellipse(cx, cy, c.width * 0.5, c.height * 0.5, 0, 0, Math.PI * 2);
       ctx.fill();
-      ctx.fillStyle = '#1A2844';
+
+      const gC1 = ctx.createRadialGradient(cx - c.width * 0.2, cy + c.height * 0.12, 0, cx - c.width * 0.2, cy + c.height * 0.12, c.width * 0.38);
+      gC1.addColorStop(0, '#1A2844');
+      gC1.addColorStop(0.5, '#1A2844');
+      gC1.addColorStop(1, 'transparent');
+      ctx.fillStyle = gC1;
       ctx.beginPath();
       ctx.ellipse(cx - c.width * 0.2, cy + c.height * 0.12, c.width * 0.38, c.height * 0.42, 0, 0, Math.PI * 2);
       ctx.fill();
-      ctx.fillStyle = '#22345A';
+
+      const gC2 = ctx.createRadialGradient(cx + c.width * 0.25, cy - c.height * 0.08, 0, cx + c.width * 0.25, cy - c.height * 0.08, c.width * 0.3);
+      gC2.addColorStop(0, '#22345A');
+      gC2.addColorStop(0.5, '#22345A');
+      gC2.addColorStop(1, 'transparent');
+      ctx.fillStyle = gC2;
       ctx.beginPath();
       ctx.ellipse(cx + c.width * 0.25, cy - c.height * 0.08, c.width * 0.3, c.height * 0.35, 0, 0, Math.PI * 2);
       ctx.fill();
@@ -626,9 +654,12 @@ export default function AtmosphericBackground() {
 
       const fx = f.x + mx * 5;
       ctx.save();
-      ctx.filter = `blur(${f.blur}px)`;
       ctx.globalAlpha = f.opacity;
-      ctx.fillStyle = '#1A2844';
+      const gFog = ctx.createRadialGradient(fx, f.y + my * 2, 0, fx, f.y + my * 2, f.width * 0.5);
+      gFog.addColorStop(0, '#1A2844');
+      gFog.addColorStop(0.5, '#1A2844');
+      gFog.addColorStop(1, 'transparent');
+      ctx.fillStyle = gFog;
       ctx.beginPath();
       ctx.ellipse(fx, f.y + my * 2, f.width * 0.5, h * 0.035, 0, 0, Math.PI * 2);
       ctx.fill();

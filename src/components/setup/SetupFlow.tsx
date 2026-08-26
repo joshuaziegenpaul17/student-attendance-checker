@@ -3,7 +3,11 @@
 import React, { useState, useMemo } from 'react';
 import { StudentProfile, Subject, MonthlyAttendance } from '@/types/attendance';
 import { ArrowRight, Upload } from 'lucide-react';
-import ScreenshotImport from '@/components/screens/ScreenshotImport';
+import dynamic from 'next/dynamic';
+
+const ScreenshotImport = dynamic(() => import('@/components/screens/ScreenshotImport'), {
+  ssr: false,
+});
 
 interface SetupFlowProps {
   onComplete: (profile: StudentProfile, sheetName?: string, initialSubjects?: Subject[], initialMonthly?: MonthlyAttendance[]) => void;

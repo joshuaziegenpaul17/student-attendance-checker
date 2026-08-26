@@ -8,18 +8,21 @@ import {
   getSheets, getCurrentSheetId, getCurrentSheet, setCurrentSheetId,
   saveSheet, deleteSheet, createNewSheet, openSheet, exitCurrentSheet,
   migrateLegacyData, getTarget, saveTarget, clearAllData, exportData, importData,
+  saveSheets,
 } from '@/lib/attendance/storage';
 import { calculateOverallAttendance } from '@/lib/attendance/calculations';
-import SetupFlow from '@/components/setup/SetupFlow';
-import Dashboard from '@/components/screens/Dashboard';
-import SubjectsScreen from '@/components/screens/Subjects';
-import CumulativeAttendance from '@/components/screens/CumulativeAttendance';
-import WhatIfScreen from '@/components/screens/WhatIf';
-import CGPAScreen from '@/components/screens/CGPA';
-import SettingsScreen from '@/components/screens/Settings';
-import MySheetsScreen from '@/components/screens/MySheets';
-import SubjectForm from '@/components/setup/SubjectForm';
-import SubjectDetails from '@/components/attendance/SubjectDetails';
+import dynamic from 'next/dynamic';
+
+const SetupFlow = dynamic(() => import('@/components/setup/SetupFlow'), { ssr: false });
+const Dashboard = dynamic(() => import('@/components/screens/Dashboard'), { ssr: false });
+const SubjectsScreen = dynamic(() => import('@/components/screens/Subjects'), { ssr: false });
+const CumulativeAttendance = dynamic(() => import('@/components/screens/CumulativeAttendance'), { ssr: false });
+const WhatIfScreen = dynamic(() => import('@/components/screens/WhatIf'), { ssr: false });
+const CGPAScreen = dynamic(() => import('@/components/screens/CGPA'), { ssr: false });
+const SettingsScreen = dynamic(() => import('@/components/screens/Settings'), { ssr: false });
+const MySheetsScreen = dynamic(() => import('@/components/screens/MySheets'), { ssr: false });
+const SubjectForm = dynamic(() => import('@/components/setup/SubjectForm'), { ssr: false });
+const SubjectDetails = dynamic(() => import('@/components/attendance/SubjectDetails'), { ssr: false });
 import { LayoutDashboard, BookOpen, Calendar, TrendingUp, Settings, Grid3X3, BookOpenCheck, GraduationCap, ArrowRight } from 'lucide-react';
 import AtmosphericBackground from '@/components/AtmosphericBackground';
 import MobileNav from '@/components/MobileNav';
@@ -69,8 +72,22 @@ export default function Home() {
   // Hydration + migration
   useEffect(() => {
     migrateLegacyData();
-    const allSheets = getSheets();
+    let allSheets = getSheets();
     const targetVal = getTarget();
+    
+    // Clean up cgpaData from any existing sample/demo sheets in localStorage
+    // to clear the bug for existing users who previously loaded demo data
+    let modified = false;
+    allSheets = allSheets.map(s => {
+      if (s.id.startsWith('sheet_sample_') && s.cgpaData.semesters.length > 0) {
+        modified = true;
+        return { ...s, cgpaData: { semesters: [] } };
+      }
+      return s;
+    });
+    if (modified) {
+      saveSheets(allSheets);
+    }
     
     // Always start at home module on mount / refresh
     exitCurrentSheet();
@@ -352,7 +369,13 @@ export default function Home() {
             <AtmosphericBackground />
             <div className="bg-black/80 backdrop-blur-xl border-b border-[#1A1A1A] relative z-10">
               <div className="flex items-center h-14 px-4 justify-between">
-                <span className="text-[15px] text-[#FFF] tracking-tight font-medium">Attendance</span>
+                <div className="flex items-center gap-3">
+                  <button onClick={triggerExit} className="text-[14px] text-[#949494] hover:text-[#FFF] transition-smooth font-medium flex items-center gap-1">
+                    ← Home
+                  </button>
+                  <span className="text-[14px] text-[#333]">|</span>
+                  <span className="text-[15px] text-[#FFF] tracking-tight font-medium">Attendance</span>
+                </div>
                 <button onClick={triggerExit} className="text-[13px] text-[#F87171] hover:text-[#FFF] border border-[#2A2A2C] px-3 py-1.5 rounded-full transition-smooth font-medium">Exit</button>
               </div>
             </div>
@@ -376,12 +399,18 @@ export default function Home() {
           <div className="bg-black/80 backdrop-blur-xl border-b border-[#1A1A1A] relative z-10">
             <div className="flex items-center h-14 px-4 justify-between">
               <div className="flex items-center gap-3">
-                <button onClick={triggerExit} className="text-[13px] text-[#F87171] hover:text-[#FFF] border border-[#2A2A2C] px-3 py-1 rounded-full transition-smooth font-medium">Exit</button>
+                <button onClick={triggerExit} className="text-[14px] text-[#949494] hover:text-[#FFF] transition-smooth font-medium flex items-center gap-1">
+                  ← Home
+                </button>
+                <span className="text-[14px] text-[#333]">|</span>
                 <span className="text-[15px] text-[#FFF] tracking-tight font-medium">Attendance</span>
               </div>
-              {hasSheets && (
-                <button onClick={() => setCurrentPage('sheets')} className="text-[13px] text-[#666] hover:text-[#FFF] transition-smooth">My Sheets</button>
-              )}
+              <div className="flex items-center gap-3">
+                {hasSheets && (
+                  <button onClick={() => setCurrentPage('sheets')} className="text-[13px] text-[#666] hover:text-[#FFF] transition-smooth mr-1">My Sheets</button>
+                )}
+                <button onClick={triggerExit} className="text-[13px] text-[#F87171] hover:text-[#FFF] border border-[#2A2A2C] px-3 py-1.5 rounded-full transition-smooth font-medium">Exit</button>
+              </div>
             </div>
           </div>
           <div className="relative z-10">
@@ -447,9 +476,13 @@ export default function Home() {
         <header className="hidden md:block sticky top-0 z-50 bg-black/60 backdrop-blur-xl border-b border-[#1A1A1A]">
           <div className="app-container flex items-center justify-between h-14">
             <div className="flex items-center gap-3">
-              <button onClick={triggerExit} className="text-[13px] text-[#F87171] hover:text-[#FFF] border border-[#2A2A2C] px-3 py-1.5 rounded-full transition-smooth font-medium animate-pulse">Exit</button>
+              <button onClick={triggerExit} className="text-[14px] text-[#949494] hover:text-[#FFF] transition-smooth font-medium flex items-center gap-1">
+                ← Home
+              </button>
+              <span className="text-[14px] text-[#333]">|</span>
               <span className="text-[15px] text-[#FFFFFF] tracking-tight font-medium">Attendance</span>
               <span className="text-[11px] text-[#666] font-medium bg-[#111] px-2 py-0.5 rounded-full max-w-[180px] truncate">{sheetLabel}</span>
+              <button onClick={triggerExit} className="text-[13px] text-[#F87171] hover:text-[#FFF] border border-[#2A2A2C] px-3 py-1.5 rounded-full transition-smooth font-medium ml-1">Exit</button>
               {hasUnsavedChanges && (
                 <span className="text-[10px] text-[#FBBF24] bg-[#78350F]/20 border border-[#78350F]/30 px-2.5 py-0.5 rounded-full font-medium">Unsaved Changes</span>
               )}
@@ -617,7 +650,13 @@ export default function Home() {
         {/* CGPA header — same for mobile and desktop */}
         <div className="bg-black/80 backdrop-blur-xl border-b border-[#1A1A1A] relative z-10">
           <div className="flex items-center h-14 px-4 justify-between">
-            <span className="text-[15px] text-[#FFF] tracking-tight font-medium">GPA / CGPA</span>
+            <div className="flex items-center gap-3">
+              <button onClick={triggerExit} className="text-[14px] text-[#949494] hover:text-[#FFF] transition-smooth font-medium flex items-center gap-1">
+                ← Home
+              </button>
+              <span className="text-[14px] text-[#333]">|</span>
+              <span className="text-[15px] text-[#FFF] tracking-tight font-medium">GPA / CGPA</span>
+            </div>
             <button onClick={triggerExit} className="text-[13px] text-[#F87171] hover:text-[#FFF] border border-[#2A2A2C] px-3 py-1.5 rounded-full transition-smooth font-medium">Exit</button>
           </div>
         </div>

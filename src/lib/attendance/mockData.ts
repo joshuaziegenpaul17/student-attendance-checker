@@ -73,7 +73,7 @@ export function createMockSheet(): AttendanceSheet {
     profile: { ...mockProfile },
     subjects: mockSubjects.map(s => ({ ...s })),
     monthly: mockMonthly.map(m => ({ ...m })),
-    cgpaData: JSON.parse(JSON.stringify(mockCGPA)),
+    cgpaData: { semesters: [] },
     createdAt: now,
     updatedAt: now,
   };

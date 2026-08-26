@@ -47,10 +47,11 @@ export default function MobileNav({ items, activeId, title, onHome }: MobileNavP
         <div className="flex items-center justify-between h-14 px-4">
           <div className="flex items-center gap-3">
             {onHome && (
-              <button onClick={onHome} className="text-[13px] text-[#F87171] hover:text-[#FFF] border border-[#2A2A2C] px-2.5 py-1 rounded-full transition-smooth font-medium">
-                Exit
+              <button onClick={onHome} className="text-[14px] text-[#949494] hover:text-[#FFF] transition-smooth font-medium flex items-center gap-1">
+                ← Home
               </button>
             )}
+            {onHome && <span className="text-[14px] text-[#333]">|</span>}
             <span className="text-[15px] text-[#FFFFFF] tracking-tight font-medium">{title}</span>
           </div>
           <button
