@@ -46,7 +46,6 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${newsreader.variable} ${manrope.variable} antialiased`}>
       <head>
-        <link rel="apple-touch-icon" href="/icon-192.png" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
       </head>

@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <!-- Premium dark background blue glow -->
+    <radialGradient id="glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#0E1729"/>
+      <stop offset="60%" stop-color="#020617"/>
+      <stop offset="100%" stop-color="#000000"/>
+    </radialGradient>
+    <!-- Subtle cyan-blue border glow -->
+    <linearGradient id="ringGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38BDF8"/>
+      <stop offset="50%" stop-color="#3B82F6"/>
+      <stop offset="100%" stop-color="#1D4ED8"/>
+    </linearGradient>
+    <!-- White-to-gray checkmark gradient -->
+    <linearGradient id="checkGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FFFFFF"/>
+      <stop offset="100%" stop-color="#CBD5E1"/>
+    </linearGradient>
+    <!-- Glow filter for checking -->
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#38BDF8" flood-opacity="0.3"/>
+    </filter>
+  </defs>
+  
+  <!-- Base background (transparent in final icon, but we fill with subtle dark gradient for maskable icons) -->
+  <rect width="512" height="512" rx="128" fill="url(#glow)"/>
+  
+  <!-- Inner Ring -->
+  <circle cx="256" cy="256" r="160" fill="#020617" stroke="url(#ringGrad)" stroke-width="16" filter="url(#shadow)"/>
+  
+  <!-- Checkmark -->
+  <path d="M180 260 L235 315 L335 195" fill="none" stroke="url(#checkGrad)" stroke-width="36" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
