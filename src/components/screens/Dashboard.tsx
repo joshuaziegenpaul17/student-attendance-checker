@@ -39,8 +39,11 @@ export default function Dashboard({ profile, stats, subjects, monthly, target, o
   const animTotal = useAnimatedNumber(totalConduct, 800, 700);
 
   // Animated progress ring
-  const radius = 90;
-  const circumference = 2 * Math.PI * radius;
+  const ringRadius = 50;   // radius inside the viewBox coordinate system
+  const ringStroke = 6;    // stroke width in viewBox units
+  const ringViewSize = (ringRadius + ringStroke) * 2; // total viewBox size (112)
+  const ringCenter = ringViewSize / 2;              // center point (56)
+  const circumference = 2 * Math.PI * ringRadius;
   const animRingPct = useAnimatedNumber(Math.min(percentage, 100), 1200, 200);
   const offset = circumference - (animRingPct / 100) * circumference;
 
@@ -66,12 +69,23 @@ export default function Dashboard({ profile, stats, subjects, monthly, target, o
 
         {/* Circular progress with animation */}
         <div className="relative inline-block my-6 sm:my-8">
-          <svg className="w-40 h-40 sm:w-52 sm:h-52 md:w-64 md:h-64" style={{ transform: 'rotate(-90deg)' }}>
-            <circle cx="50%" cy="50%" r={radius} stroke="#1A1A1A" strokeWidth="6" fill="transparent" />
-            <circle cx="50%" cy="50%" r={radius}
+          <svg
+            className="w-40 h-40 sm:w-52 sm:h-52 md:w-64 md:h-64"
+            viewBox={`0 0 ${ringViewSize} ${ringViewSize}`}
+            style={{ transform: 'rotate(-90deg)' }}
+          >
+            {/* Background track — full circle, always visible */}
+            <circle
+              cx={ringCenter} cy={ringCenter} r={ringRadius}
+              stroke="#1A1A1A" strokeWidth={ringStroke} fill="transparent"
+            />
+            {/* Progress arc — animates on mount */}
+            <circle
+              cx={ringCenter} cy={ringCenter} r={ringRadius}
               stroke={status === 'ON_TRACK' ? '#4ADE80' : status === 'BELOW_TARGET' ? '#949494' : '#F87171'}
-              strokeWidth="6" fill="transparent"
-              strokeDasharray={circumference} strokeDashoffset={offset}
+              strokeWidth={ringStroke} fill="transparent"
+              strokeDasharray={circumference}
+              strokeDashoffset={offset}
               strokeLinecap="round"
               style={{ transition: 'stroke-dashoffset 1.2s cubic-bezier(0.4, 0, 0.2, 1), stroke 0.5s ease' }}
             />

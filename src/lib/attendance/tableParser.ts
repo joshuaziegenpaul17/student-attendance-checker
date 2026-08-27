@@ -54,8 +54,8 @@ const CUMULATIVE_MARKERS = [
   /monthly\s*attendance/i,
 ];
 
-// Subject code pattern: 2-6 letters + 1-4 digits + optional suffix
-const SUBJECT_CODE_RE = /\b([A-Z]{2,6}\d{1,4}[A-Z]{0,3}\d{0,3})\b/;
+// Subject code pattern: 2-3 letters + 1 digit (with O, I, l confusion) + 0-2 letters + 2-3 digits (with O, I, l confusion)
+const SUBJECT_CODE_RE = /\b([A-Z]{2,3}[0-9OIl]{1}[A-Z]{0,2}[0-9OIl]{2,3})\b/i;
 
 // Month pattern: Jun-2026, Jul 2026, etc.
 const MONTH_RE = /^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*[\s\-\/\.]+(\d{2,4})/i;
@@ -147,6 +147,101 @@ export function parseOCRText(text: string, ocrLines?: OCRLine[], ocrWords?: OCRW
 }
 
 // ═══════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════
+// ROW MERGING UTILITY (handles OCR line splitting)
+// ═══════════════════════════════════════════════════════
+
+function mergeSplitRows(rows: OCRWord[][]): OCRWord[][] {
+  // Strategy: Code-anchor merging.
+  // A subject row MUST contain a subject code.
+  // All rows between two subject-code rows that don't have codes
+  // are associated with the nearest code row above them.
+  // This handles 2-row, 3-row, and even 4-row splits.
+
+  if (rows.length === 0) return [];
+
+  // Step 1: Identify rows with subject codes
+  const codeRowIndices: number[] = [];
+  const hasCode = rows.map(row => {
+    const text = row.map(w => w.text).join(' ');
+    return SUBJECT_CODE_RE.test(text);
+  });
+  rows.forEach((row, i) => {
+    if (hasCode[i]) codeRowIndices.push(i);
+  });
+
+  // If no subject codes found at all, return rows as-is
+  if (codeRowIndices.length === 0) return rows;
+
+  // Step 2: Associate each non-code row with the nearest code row above it
+  // Map: codeRowIndex -> [indices of rows to merge into it]
+  const mergeMap = new Map<number, number[]>();
+  for (const idx of codeRowIndices) {
+    mergeMap.set(idx, []);
+  }
+
+  for (let i = 0; i < rows.length; i++) {
+    if (hasCode[i]) continue;
+
+    // Skip rows that are clearly not part of any subject:
+    // header rows, total rows, month rows, section headings
+    const rowText = rows[i].map(w => w.text).join(' ').trim();
+    if (/^total\b/i.test(rowText) || /^grand\s*total/i.test(rowText)) continue;
+    if (/^subject/i.test(rowText) || /^code/i.test(rowText)) continue;
+    if (/^description/i.test(rowText) || /^total\s*hrs?/i.test(rowText)) continue;
+    if (/^attendance/i.test(rowText) || /^month/i.test(rowText)) continue;
+    if (/^with\s*od/i.test(rowText)) continue;
+    if (MONTH_RE.test(rowText)) continue;
+
+    // Find the nearest code row above this row
+    let nearestCodeIdx = -1;
+    let minDist = Infinity;
+    const rowY = rows[i].reduce((sum, w) => sum + (w.bbox.y0 + w.bbox.y1) / 2, 0) / rows[i].length;
+
+    for (const codeIdx of codeRowIndices) {
+      const codeRowY = rows[codeIdx].reduce((sum, w) => sum + (w.bbox.y0 + w.bbox.y1) / 2, 0) / rows[codeIdx].length;
+      const dist = Math.abs(rowY - codeRowY);
+      if (dist < minDist && dist < 60) { // within 60px vertical distance
+        minDist = dist;
+        nearestCodeIdx = codeIdx;
+      }
+    }
+
+    if (nearestCodeIdx >= 0) {
+      mergeMap.get(nearestCodeIdx)!.push(i);
+    }
+  }
+
+  // Step 3: Merge rows and rebuild the list
+  const merged: OCRWord[][] = [];
+  const usedRows = new Set<number>();
+
+  for (const codeIdx of codeRowIndices) {
+    const mergeIndices = mergeMap.get(codeIdx) || [];
+    let combined = [...rows[codeIdx]];
+    for (const idx of mergeIndices) {
+      combined = combined.concat(rows[idx]);
+      usedRows.add(idx);
+    }
+    combined.sort((a, b) => a.bbox.x0 - b.bbox.x0);
+    merged.push(combined);
+    usedRows.add(codeIdx);
+  }
+
+  // Add remaining un-merged rows that aren't total/header/month
+  for (let i = 0; i < rows.length; i++) {
+    if (usedRows.has(i)) continue;
+    const rowText = rows[i].map(w => w.text).join(' ').trim();
+    if (/^total\b/i.test(rowText) || /^grand\s*total/i.test(rowText)) continue;
+    if (MONTH_RE.test(rowText)) continue;
+    if (/^subject/i.test(rowText) || /^code/i.test(rowText)) continue;
+    if (/^attendance/i.test(rowText) || /^month/i.test(rowText)) continue;
+    merged.push(rows[i]);
+  }
+
+  return merged;
+}
+
 // SPATIAL PARSER (primary — uses bounding boxes)
 // ═══════════════════════════════════════════════════════
 
@@ -157,19 +252,22 @@ function parseWithSpatialData(text: string, ocrLines: OCRLine[], ocrWords: OCRWo
 
   // ── Step 2: Get words in each region ──
   const allWordsInSubject = subjectRegion
-    ? ocrWords.filter(w => w.bbox.y0 >= subjectRegion.startY && w.bbox.y0 < subjectRegion.endY)
+    ? ocrWords.filter(w => w.bbox.y0 >= subjectRegion.startY - 10 && w.bbox.y0 < subjectRegion.endY)
     : [];
 
   const allWordsInCumulative = cumulativeRegion
-    ? ocrWords.filter(w => w.bbox.y0 >= cumulativeRegion.startY && w.bbox.y0 < cumulativeRegion.endY)
+    ? ocrWords.filter(w => w.bbox.y0 >= cumulativeRegion.startY - 10 && w.bbox.y0 < cumulativeRegion.endY)
     : [];
 
-  // ── Step 3: Group words into rows ──
-  const subjectRows = groupWordsIntoRows(allWordsInSubject);
-  const cumulativeRows = groupWordsIntoRows(allWordsInCumulative);
+  // ── Step 3: Group words into rows (25px threshold for OCR vertical misalignment robustness) ──
+  const subjectRows = groupWordsIntoRows(allWordsInSubject, 25);
+  const cumulativeRows = groupWordsIntoRows(allWordsInCumulative, 25);
+
+  // Merge split subject rows (e.g. if code was split onto line above/below numbers)
+  const subjectRowsMerged = mergeSplitRows(subjectRows);
 
   // ── Step 4: Extract subjects from rows ──
-  const subjects = extractSubjectsWithSpatialData(subjectRows);
+  const subjects = extractSubjectsWithSpatialData(subjectRowsMerged);
 
   // ── Step 5: Extract months from rows ──
   const monthly = extractMonthlyWithSpatialData(cumulativeRows);
@@ -198,9 +296,41 @@ function parseWithSpatialData(text: string, ocrLines: OCRLine[], ocrWords: OCRWo
     ? Math.round((monthlyTotals.present / monthlyTotals.total) * 10000) / 100
     : 0;
 
-  // Fallback: if spatial extraction failed, try flat text
-  if (subjects.length === 0 && monthly.length === 0) {
-    return parseFlatText(text);
+  // Always also run the flat text parser — it's often more reliable
+  const flatResult = parseFlatText(text);
+
+  // Helper: compute validity score for a subject list
+  const scoreSubjects = (subs: ParsedSubject[]): number => {
+    let score = 0;
+    for (const s of subs) {
+      if (s.subjectCode) score += 2;
+      if (s.subjectName && s.subjectName !== 'Unknown Subject') score += 1;
+      if (s.presentHours + s.absentHours + s.clHours === s.totalHours) score += 3;
+      if (s.totalHours > 0 && s.presentHours > 0) score += 1;
+    }
+    return score;
+  };
+
+  // Prefer the result with more subjects, or better validity
+  const spatialScore = scoreSubjects(subjects);
+  const flatScore = scoreSubjects(flatResult.subjects);
+
+  // Use flat result if it found more subjects, or equal subjects with better score
+  const useFlat = flatResult.subjects.length > subjects.length ||
+    (flatResult.subjects.length === subjects.length && flatScore > spatialScore);
+
+  if (useFlat && flatResult.subjects.length > 0) {
+    // Merge: use flat's subjects + spatial's months (or flat's months)
+    const bestMonthly = monthly.length >= flatResult.monthly.length ? monthly : flatResult.monthly;
+    return {
+      subjects: flatResult.subjects,
+      monthly: bestMonthly,
+      subjectTotals: flatResult.subjectTotals,
+      monthlyTotals: flatResult.monthlyTotals,
+      rawText: text,
+      hasSubjectTable: true,
+      hasCumulativeTable: bestMonthly.length > 0,
+    };
   }
 
   return {
@@ -264,6 +394,7 @@ function extractSubjectsWithSpatialData(rows: OCRWord[][]): ParsedSubject[] {
     // Get text words (after code, before numbers)
     const textWords: string[] = [];
     const numberWords: number[] = [];
+    const numberPositions: number[] = []; // x-midpoint for each number
     let pctFromImage = 0;
 
     for (let i = codeWordIdx + 1; i < row.length; i++) {
@@ -274,10 +405,17 @@ function extractSubjectsWithSpatialData(rows: OCRWord[][]): ParsedSubject[] {
       const pctMatch = w.text.match(/(\d{1,3}(?:\.\d{1,2})?)\s*%/) ||
                        (i + 1 < row.length && row[i + 1].text === '%' ? null : null);
       // Handle separate % token
-      if (w.text === '%' && i > 0) {
-        const prevNum = parseFloat(row[i - 1].text);
-        if (!isNaN(prevNum) && prevNum > 0 && prevNum <= 100) {
+      if (w.text === '%' && i > codeWordIdx) {
+        const prevW = row[i - 1];
+        const prevClean = prevW.text.replace(/[,]/g, '');
+        const prevNum = parseFloat(prevClean);
+        if (!isNaN(prevNum) && prevNum > 0 && prevNum <= 100 && /^\d/.test(prevClean)) {
           pctFromImage = prevNum;
+          // Remove the percentage number from numberWords so it doesn't pollute T/A/P
+          const lastIdx = numberWords.length - 1;
+          if (lastIdx >= 0 && numberWords[lastIdx] === Math.round(prevNum)) {
+            numberWords.pop();
+          }
           continue;
         }
       }
@@ -293,6 +431,7 @@ function extractSubjectsWithSpatialData(rows: OCRWord[][]): ParsedSubject[] {
       const num = parseInt(cleanText);
       if (!isNaN(num) && num >= 0 && num <= 999 && /^\d+$/.test(cleanText)) {
         numberWords.push(num);
+        numberPositions.push((w.bbox.x0 + w.bbox.x1) / 2);
       } else if (/^[A-Za-z]+$/.test(cleanText) && cleanText.length <= 3) {
         // Could be column header like "A", "P", "CL" — skip these
         continue;
@@ -306,22 +445,55 @@ function extractSubjectsWithSpatialData(rows: OCRWord[][]): ParsedSubject[] {
     // Remove leading/trailing artifacts
     name = name.replace(/^\d+\s*/, '').trim();
 
-    // Now assign numbers. The table columns are:
-    // Total, A, P, (CL if present), Attendance%
-    // But OCR may read them in various orders.
+    // Now assign numbers. The table columns (left to right) are:
+    // Total, A (Absent), P (Present), CL (optional), Attendance%
     //
-    // Strategy: find the pattern that makes sense:
-    // Total >= A + P (Total must be the sum)
-    // If no explicit Total, compute it from A + P
+    // Strategy:
+    // 1. For 4+ numbers with CL: use spatial x-position ordering
+    // 2. For 3 numbers: find T = A + P
+    // 3. For 2 numbers: A and P
 
     let total = 0, absent = 0, present = 0, cl = 0;
 
     // Filter out obviously-too-large numbers (like 552 from misread)
     const validNums = numberWords.filter(n => n <= 500);
 
-    if (validNums.length >= 3) {
-      // First check: is there a number that equals the sum of two others?
-      // This is likely Total
+    if (validNums.length >= 4) {
+      // 4 or more numbers: likely T, A, P, CL (and maybe percentage remnants)
+      // Use spatial x-position to determine column order (left to right = T, A, P, CL)
+      const paired: { val: number; x: number }[] = validNums.map((v, i) => ({
+        val: v,
+        x: i < numberPositions.length ? numberPositions[i] : i * 100,
+      }));
+      paired.sort((a, b) => a.x - b.x);
+      const sorted = paired.map(p => p.val);
+
+      // Take first 4 as T, A, P, CL
+      const candidate = [sorted[0], sorted[1], sorted[2], sorted[3]];
+      // Validate: check if largest = sum of other 3
+      const maxIdx = candidate.indexOf(Math.max(...candidate));
+      const othersSum = candidate.reduce((s, v, i) => i === maxIdx ? s : s + v, 0);
+      if (candidate[maxIdx] === othersSum) {
+        total = candidate[maxIdx];
+        // Remaining 3 are A, P, CL in left-to-right order
+        const remaining = candidate.filter((_, i) => i !== maxIdx);
+        absent = remaining[0];
+        present = remaining[1];
+        cl = remaining[2] || 0;
+      } else {
+        // Fallback: assume left-to-right = T, A, P, CL
+        total = sorted[0];
+        absent = sorted[1];
+        present = sorted[2];
+        cl = sorted[3] || 0;
+        // Validate: if T != A+P+CL, recalculate T
+        if (total !== absent + present + cl) {
+          total = absent + present + cl;
+        }
+      }
+    } else if (validNums.length === 3) {
+      // 3 numbers: likely T, A, P (or A, P, CL with T computed)
+      // Check if any = sum of other two
       let foundTotal = false;
       for (let i = 0; i < validNums.length; i++) {
         for (let j = 0; j < validNums.length; j++) {
@@ -330,8 +502,13 @@ function extractSubjectsWithSpatialData(rows: OCRWord[][]): ParsedSubject[] {
             if (k === i || k === j) continue;
             if (validNums[i] === validNums[j] + validNums[k]) {
               total = validNums[i];
-              absent = validNums[j];  // A comes before P in the table
-              present = validNums[k];
+              if (j < k) {
+                absent = validNums[j];
+                present = validNums[k];
+              } else {
+                absent = validNums[k];
+                present = validNums[j];
+              }
               foundTotal = true;
               break;
             }
@@ -340,43 +517,21 @@ function extractSubjectsWithSpatialData(rows: OCRWord[][]): ParsedSubject[] {
         }
         if (foundTotal) break;
       }
-
       if (!foundTotal) {
-        // No number equals sum of others — assume first two are A and P
-        // Sort: larger is likely Total or P
         const sorted = [...validNums].sort((a, b) => b - a);
-        total = sorted[0]; // Largest might be Total
-        // Check if largest >= sum of next two
-        if (sorted.length >= 3 && sorted[0] >= sorted[1] + sorted[2]) {
-          absent = sorted[1];
-          present = sorted[2];
+        if (sorted[0] >= sorted[1] + sorted[2]) {
+          total = sorted[0]; absent = sorted[1]; present = sorted[2];
         } else {
-          // No valid Total found — compute from the two middle values
-          absent = sorted[sorted.length - 2];
-          present = sorted[sorted.length - 1];
-          total = absent + present;
+          absent = sorted[2]; present = sorted[1]; total = absent + present;
         }
       }
-
-      // Check for CL — only if there's an extra number that doesn't fit T/A/P
-      const remaining = validNums.filter(n => n !== total && n !== absent && n !== present);
-      if (remaining.length > 0) {
-        // Only assign CL if the remaining number makes T = A + P + CL
-        const candidate = remaining[0];
-        if (total === absent + present + candidate) {
-          cl = candidate;
-        }
-        // Otherwise, don't invent CL
-      }
+      cl = 0;
     } else if (validNums.length === 2) {
-      // Two numbers: likely A and P
-      absent = validNums[0];
-      present = validNums[1];
-      if (absent > present) [absent, present] = [present, absent]; // Ensure P >= A
+      absent = validNums[0]; present = validNums[1];
+      if (absent > present) [absent, present] = [present, absent];
       total = absent + present;
       cl = 0;
     } else if (validNums.length === 1) {
-      // Only one number — can't determine, skip
       continue;
     } else {
       continue;
@@ -455,10 +610,14 @@ function extractMonthlyWithSpatialData(rows: OCRWord[][]): ParsedMonthly[] {
 
     // Extract numbers from this row
     const nums: number[] = [];
+    const yearNum = parseInt(year);
+    const shortYearNum = parseInt(year.substring(2));
+    
     for (const w of row) {
       const cleanText = w.text.replace(/[,]/g, '');
       const num = parseInt(cleanText);
       if (!isNaN(num) && num >= 0 && num <= 999 && /^\d+$/.test(cleanText)) {
+        if (num === yearNum || num === shortYearNum) continue; // Skip year!
         nums.push(num);
       }
     }
@@ -656,6 +815,9 @@ function extractMonthlyFromLines(lines: string[]): ParsedMonthly[] {
 
     // Collect numbers from this and next lines
     const nums: number[] = [];
+    const yearNum = parseInt(year);
+    const shortYearNum = parseInt(year.substring(2));
+
     for (let j = i; j < Math.min(i + 3, lines.length); j++) {
       if (j > i && lines[j].match(MONTH_RE)) break;
       if (/^total\b/i.test(lines[j])) break;
@@ -663,7 +825,10 @@ function extractMonthlyFromLines(lines: string[]): ParsedMonthly[] {
       if (matches) {
         for (const m of matches) {
           const n = parseInt(m);
-          if (n >= 0 && n <= 999) nums.push(n);
+          if (n >= 0 && n <= 999) {
+            if (n === yearNum || n === shortYearNum) continue; // Skip year!
+            nums.push(n);
+          }
         }
       }
     }

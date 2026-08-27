@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 
 export function useAnimatedNumber(
   target: number,
@@ -8,38 +8,31 @@ export function useAnimatedNumber(
   delay: number = 0,
   enabled: boolean = true
 ): number {
-  const [value, setValue] = useState(enabled ? 0 : target);
-  const [prev, setPrev] = useState({ target, enabled });
+  const [value, setValue] = useState(target);
+  const fromRef = useRef(target);
   const frameRef = useRef<number>(0);
 
-  if (target !== prev.target || enabled !== prev.enabled) {
-    setPrev({ target, enabled });
-    setValue(enabled ? 0 : target);
-  }
-
-  useEffect(() => {
-    if (!enabled) {
-      return;
-    }
-
+  const animateTo = useCallback((from: number, to: number) => {
     let cancelled = false;
+    fromRef.current = from;
 
     const timeout = setTimeout(() => {
       const start = performance.now();
 
-      const animate = (now: number) => {
+      const tick = (now: number) => {
         if (cancelled) return;
         const elapsed = now - start;
         const progress = Math.min(elapsed / duration, 1);
-        // Ease out cubic
         const eased = 1 - Math.pow(1 - progress, 3);
-        setValue(eased * target);
+        setValue(from + (to - from) * eased);
         if (progress < 1) {
-          frameRef.current = requestAnimationFrame(animate);
+          frameRef.current = requestAnimationFrame(tick);
+        } else {
+          fromRef.current = to;
         }
       };
 
-      frameRef.current = requestAnimationFrame(animate);
+      frameRef.current = requestAnimationFrame(tick);
     }, delay);
 
     return () => {
@@ -47,7 +40,14 @@ export function useAnimatedNumber(
       clearTimeout(timeout);
       cancelAnimationFrame(frameRef.current);
     };
-  }, [target, duration, delay, enabled]);
+  }, [duration, delay]);
+
+  useEffect(() => {
+    if (!enabled) {
+      return animateTo(target, target);
+    }
+    return animateTo(fromRef.current, target);
+  }, [target, enabled, animateTo]);
 
   return value;
 }

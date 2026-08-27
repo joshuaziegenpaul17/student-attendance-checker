@@ -46,6 +46,7 @@ html {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
+  overflow-x: hidden;
 }
 
 body {
@@ -261,9 +262,21 @@ html {
 }
 
 /* Prevent horizontal scroll on mobile */
-body {
-  max-width: 100vw;
+html, body {
+  max-width: 100%;
   overflow-x: hidden;
+}
+
+/* Hide scrollbar on mobile — the "white line" artifact */
+@media (max-width: 768px) {
+  html, body {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  html::-webkit-scrollbar,
+  body::-webkit-scrollbar {
+    display: none;
+  }
 }
 
 /* Touch-friendly scrolling */

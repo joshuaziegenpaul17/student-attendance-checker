@@ -1,16 +1,14 @@
 'use client';
 
-import React, { useState, useRef, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import { StudentProfile } from '@/types/attendance';
-import { Download, Upload, Trash2, Info } from 'lucide-react';
+import { Info } from 'lucide-react';
 
 interface SettingsScreenProps {
   profile: StudentProfile;
   target: number;
   onProfileUpdate: (profile: StudentProfile) => void;
   onTargetChange: (target: number) => void;
-  onExport: () => void;
-  onImport: (content: string) => boolean;
   onReset: () => void;
   onClearAll: () => void;
 }
@@ -31,12 +29,9 @@ function getSemestersForYear(year: string, level?: 'UG' | 'PG'): string[] {
   return [];
 }
 
-export default function SettingsScreen({ profile, target, onProfileUpdate, onTargetChange, onExport, onImport, onClearAll }: SettingsScreenProps) {
+export default function SettingsScreen({ profile, target, onProfileUpdate }: Pick<SettingsScreenProps, 'profile' | 'target' | 'onProfileUpdate'>) {
   const [editProfile, setEditProfile] = useState({ ...profile });
   const [isEditing, setIsEditing] = useState(false);
-  const [importError, setImportError] = useState<string | null>(null);
-  const [showResetConfirm, setShowResetConfirm] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const years = useMemo(() => getYearsForLevel(editProfile.level), [editProfile.level]);
   const semesters = useMemo(() => getSemestersForYear(editProfile.year || '', editProfile.level), [editProfile.year, editProfile.level]);
@@ -49,15 +44,6 @@ export default function SettingsScreen({ profile, target, onProfileUpdate, onTar
     if (name === 'level') setEditProfile(prev => ({ ...prev, level: value as 'UG' | 'PG', year: '', semester: '', programme: '' }));
     else if (name === 'year') setEditProfile(prev => ({ ...prev, year: value, semester: '' }));
     else setEditProfile(prev => ({ ...prev, [name]: value }));
-  };
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => { const ok = onImport(ev.target?.result as string); if (!ok) setImportError('Failed to import.'); else setImportError(null); };
-    reader.readAsText(file);
-    e.target.value = '';
   };
 
   const inputClass = "w-full bg-[#111111] border border-[#2A2A2C] focus:border-[#555] focus:ring-1 focus:ring-[#444] rounded-[10px] px-3 py-2.5 text-[#FFFFFF] text-[15px] outline-none transition-smooth";
@@ -142,44 +128,16 @@ export default function SettingsScreen({ profile, target, onProfileUpdate, onTar
         <p className="text-[12px] text-[#555] mt-2">Loyola requires a minimum of 80%. This target is locked in V1.</p>
       </div>
 
-      {/* Data */}
-      <div className="card p-6">
-        <h3 className="font-[family-name:var(--font-newsreader)] text-lg text-[#B0B0B0] mb-5">Your Data</h3>
-        <div className="space-y-3">
-          <button onClick={onExport} className="w-full flex items-center gap-4 p-4 bg-[#0A0A0A] hover:bg-[#111] border border-[#1A1A1A] rounded-2xl transition-smooth text-left">
-            <Download size={16} className="text-[#666] shrink-0" />
-            <div><div className="text-[14px] text-[#B0B0B0]">Export Data</div><div className="text-[12px] text-[#555]">Save a backup of all your sheets</div></div>
-          </button>
-          <button onClick={() => fileInputRef.current?.click()} className="w-full flex items-center gap-4 p-4 bg-[#0A0A0A] hover:bg-[#111] border border-[#1A1A1A] rounded-2xl transition-smooth text-left">
-            <Upload size={16} className="text-[#666] shrink-0" />
-            <div><div className="text-[14px] text-[#B0B0B0]">Import Data</div><div className="text-[12px] text-[#555]">Restore from a backup file</div></div>
-          </button>
-          <input ref={fileInputRef} type="file" onChange={handleFileChange} accept=".json" className="hidden" />
-          {importError && <div className="text-[13px] text-[#F87171] px-4">{importError}</div>}
-          <div className="pt-3 border-t border-[#1A1A1A]">
-            <button onClick={() => { if (showResetConfirm) { onClearAll(); setShowResetConfirm(false); } else { setShowResetConfirm(true); setTimeout(() => setShowResetConfirm(false), 5000); } }}
-              className={`w-full flex items-center gap-4 p-4 border rounded-2xl transition-smooth text-left ${
-                showResetConfirm ? 'bg-[#2A0A0A] border-[#F87171]/20 text-[#F87171]' : 'bg-[#0A0A0A] border-[#1A1A1A] text-[#666] hover:text-[#F87171] hover:border-[#F87171]/20'
-              }`}>
-              <Trash2 size={16} className="shrink-0" />
-              <div><div className="text-[14px] font-medium">{showResetConfirm ? 'Click again to confirm' : 'Clear all data'}</div><div className="text-[12px] opacity-60">{showResetConfirm ? 'This cannot be undone' : 'Remove all sheets and data'}</div></div>
-            </button>
-          </div>
-        </div>
-      </div>
-
       {/* About */}
       <div className="card p-6">
         <div className="flex items-start gap-3">
           <Info size={16} className="text-[#666] shrink-0 mt-0.5" />
           <div>
-            <h3 className="text-[14px] text-[#B0B0B0] mb-1">Attendance Checker</h3>
+            <h3 className="text-[14px] text-[#B0B0B0] mb-1">Student Attendance Checker</h3>
             <p className="text-[13px] text-[#666] leading-relaxed">
-              A personal student tool for tracking attendance, academic performance and GPA/CGPA.
-              Calculations and reporting structure are currently based on the attendance system used by Loyola College, Chennai.
-              It is not affiliated with or endorsed by Loyola College.
+              Unofficial student utility. Not affiliated with or endorsed by any college.
             </p>
-            <p className="text-[11px] text-[#444] mt-2">Version 2.0 · 100% client-side · Privacy-first</p>
+            <p className="text-[11px] text-[#444] mt-2">Version 2.0 · 100% client-side</p>
           </div>
         </div>
       </div>

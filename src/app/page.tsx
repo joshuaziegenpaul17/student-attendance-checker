@@ -7,7 +7,7 @@ import {
 import {
   getSheets, getCurrentSheetId, getCurrentSheet, setCurrentSheetId,
   saveSheet, deleteSheet, createNewSheet, openSheet, exitCurrentSheet,
-  migrateLegacyData, getTarget, saveTarget, clearAllData, exportData, importData,
+  migrateLegacyData, getTarget, saveTarget, clearAllData,
   saveSheets,
 } from '@/lib/attendance/storage';
 import { calculateOverallAttendance } from '@/lib/attendance/calculations';
@@ -251,8 +251,6 @@ export default function Home() {
   // ===== Settings =====
   const handleProfileUpdate = (p: StudentProfile) => { updateSheet(s => ({ ...s, profile: p })); notify('success', 'Profile updated'); };
   const handleTargetChange = (t: number) => { setTarget(t); saveTarget(t); };
-  const handleExport = () => { try { exportData(); notify('success', 'Backup downloaded'); } catch { notify('error', 'Export failed'); } };
-  const handleImport = (content: string) => { const r = importData(content); if (r.success) { refreshSheets(); notify('success', `Imported ${r.sheetsImported || 0} sheet(s)`); return true; } notify('error', r.error || 'Import failed'); return false; };
   const handleClearAll = () => { clearAllData(); setSheets([]); setCurrentSheet(null); setActiveModule('home'); notify('success', 'All data cleared'); };
 
   // ===== Notification toast =====
@@ -367,7 +365,7 @@ export default function Home() {
         return (
           <div className="min-h-screen bg-[#000000] relative">
             <AtmosphericBackground />
-            <div className="bg-black/80 backdrop-blur-xl border-b border-[#1A1A1A] relative z-10">
+            <div className="sticky top-0 bg-black/80 backdrop-blur-xl border-b border-[#1A1A1A] relative z-10">
               <div className="flex items-center h-14 px-4 justify-between">
                 <div className="flex items-center gap-3">
                   <button onClick={triggerExit} className="text-[14px] text-[#949494] hover:text-[#FFF] transition-smooth font-medium flex items-center gap-1">
@@ -396,7 +394,7 @@ export default function Home() {
         <div className="min-h-screen bg-[#000000] relative">
           <AtmosphericBackground />
           <NotificationToast notification={notification} />
-          <div className="bg-black/80 backdrop-blur-xl border-b border-[#1A1A1A] relative z-10">
+          <div className="sticky top-0 bg-black/80 backdrop-blur-xl border-b border-[#1A1A1A] relative z-10">
             <div className="flex items-center h-14 px-4 justify-between">
               <div className="flex items-center gap-3">
                 <button onClick={triggerExit} className="text-[14px] text-[#949494] hover:text-[#FFF] transition-smooth font-medium flex items-center gap-1">
@@ -424,6 +422,24 @@ export default function Home() {
               onExit={triggerExit}
             />
           </div>
+
+          {/* Screenshot import exit confirmation */}
+          {showScreenshotExitConfirm && (
+            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[70] flex items-center justify-center p-4 animate-fade-in">
+              <div className="bg-[#111] border border-[#2A2A2C] rounded-2xl w-full max-w-sm p-6 animate-scale-in">
+                <h3 className="font-[family-name:var(--font-newsreader)] text-xl text-[#FFF] mb-2">Leave screenshot import?</h3>
+                <p className="text-[14px] text-[#949494] mb-6">Your temporary upload and OCR progress will be discarded.</p>
+                <div className="flex gap-3">
+                  <button onClick={() => setShowScreenshotExitConfirm(false)} className="flex-1 bg-[#18181A] hover:bg-[#222] text-[#B0B0B0] font-semibold py-2.5 rounded-full text-[14px] transition-smooth border border-[#2A2A2C]">Continue</button>
+                  <button onClick={() => {
+                    setShowScreenshotExitConfirm(false);
+                    setSetupPhase('landing');
+                    setActiveModule('home');
+                  }} className="flex-1 bg-[#F87171] hover:bg-[#EF4444] text-[#000] font-semibold py-2.5 rounded-full text-[14px] transition-smooth">Exit</button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       );
     }
@@ -461,7 +477,7 @@ export default function Home() {
         case 'whatif':
           return <WhatIfScreen stats={overallStats} target={target} />;
         case 'settings':
-          return <SettingsScreen profile={currentSheet.profile} target={target} onProfileUpdate={handleProfileUpdate} onTargetChange={handleTargetChange} onExport={handleExport} onImport={handleImport} onReset={handleClearAll} onClearAll={handleClearAll} />;
+          return <SettingsScreen profile={currentSheet.profile} target={target} onProfileUpdate={handleProfileUpdate} />;
         default:
           return null;
       }
@@ -648,7 +664,7 @@ export default function Home() {
         <NotificationToast notification={notification} />
 
         {/* CGPA header — same for mobile and desktop */}
-        <div className="bg-black/80 backdrop-blur-xl border-b border-[#1A1A1A] relative z-10">
+        <div className="sticky top-0 bg-black/80 backdrop-blur-xl border-b border-[#1A1A1A] relative z-10">
           <div className="flex items-center h-14 px-4 justify-between">
             <div className="flex items-center gap-3">
               <button onClick={triggerExit} className="text-[14px] text-[#949494] hover:text-[#FFF] transition-smooth font-medium flex items-center gap-1">
