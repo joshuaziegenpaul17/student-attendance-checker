@@ -69,14 +69,26 @@ export default function Home() {
   // Notification
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
-  // Hydration + migration
+  // Dedicated go-home function — always resets to home regardless of current state
+  const goHome = useCallback(() => {
+    exitCurrentSheet();
+    setCurrentSheet(null);
+    setInitialSheetBackup(null);
+    setHasUnsavedChanges(false);
+    setShowExitConfirm(false);
+    setShowScreenshotExitConfirm(false);
+    setActiveModule('home');
+    setCurrentPage('dashboard');
+    setSetupPhase('landing');
+  }, []);
+
+  // Hydration + migration + browser Back button handling
   useEffect(() => {
     migrateLegacyData();
     let allSheets = getSheets();
     const targetVal = getTarget();
     
     // Clean up cgpaData from any existing sample/demo sheets in localStorage
-    // to clear the bug for existing users who previously loaded demo data
     let modified = false;
     allSheets = allSheets.map(s => {
       if (s.id.startsWith('sheet_sample_') && s.cgpaData.semesters.length > 0) {
@@ -92,6 +104,11 @@ export default function Home() {
     // Always start at home module on mount / refresh
     exitCurrentSheet();
     
+    // Push a single history entry so Back has somewhere to go
+    if (typeof window !== 'undefined' && window.history && !window.history.state) {
+      window.history.replaceState({ page: 'home' }, '', window.location.href);
+    }
+
     // Defer state updates to avoid synchronous cascading renders warning
     Promise.resolve().then(() => {
       setSheets(allSheets);
@@ -104,7 +121,20 @@ export default function Home() {
       setSetupPhase('landing');
       setCurrentPage('dashboard');
     });
-  }, []);
+
+    // Handle browser Back button — always navigate home, never exit the app
+    const handlePopState = (e: PopStateEvent) => {
+      e.preventDefault();
+      goHome();
+      // Re-push state so the user stays on the app on next Back
+      window.history.pushState({ page: 'home' }, '', window.location.href);
+    };
+    window.addEventListener('popstate', handlePopState);
+
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, [goHome]);
 
   useEffect(() => {
     if (notification) {
@@ -189,30 +219,14 @@ export default function Home() {
   };
 
   const triggerExit = useCallback(() => {
-    if (activeModule === 'cgpa') {
-      setActiveModule('home');
-    } else if (activeModule === 'attendance') {
-      if (currentSheet) {
-        if (hasUnsavedChanges) {
-          setShowExitConfirm(true);
-        } else {
-          exitCurrentSheet();
-          setCurrentSheet(null);
-          setInitialSheetBackup(null);
-          setHasUnsavedChanges(false);
-          setActiveModule('home');
-        }
-      } else {
-        if (setupPhase === 'screenshot') {
-          setShowScreenshotExitConfirm(true);
-        } else {
-          setSetupPhase('landing');
-          setActiveModule('home');
-          setCurrentPage('dashboard');
-        }
-      }
+    if (currentSheet && hasUnsavedChanges) {
+      // Show save/discard confirmation before leaving
+      setShowExitConfirm(true);
+    } else {
+      // Always go home — clear all workflow state
+      goHome();
     }
-  }, [activeModule, currentSheet, hasUnsavedChanges, setupPhase]);
+  }, [currentSheet, hasUnsavedChanges, goHome]);
 
   const handleExitSheet = () => {
     triggerExit();
@@ -431,11 +445,7 @@ export default function Home() {
                 <p className="text-[14px] text-[#949494] mb-6">Your temporary upload and OCR progress will be discarded.</p>
                 <div className="flex gap-3">
                   <button onClick={() => setShowScreenshotExitConfirm(false)} className="flex-1 bg-[#18181A] hover:bg-[#222] text-[#B0B0B0] font-semibold py-2.5 rounded-full text-[14px] transition-smooth border border-[#2A2A2C]">Continue</button>
-                  <button onClick={() => {
-                    setShowScreenshotExitConfirm(false);
-                    setSetupPhase('landing');
-                    setActiveModule('home');
-                  }} className="flex-1 bg-[#F87171] hover:bg-[#EF4444] text-[#000] font-semibold py-2.5 rounded-full text-[14px] transition-smooth">Exit</button>
+                  <button onClick={() => { setShowScreenshotExitConfirm(false); goHome(); }} className="flex-1 bg-[#F87171] hover:bg-[#EF4444] text-[#000] font-semibold py-2.5 rounded-full text-[14px] transition-smooth">Exit</button>
                 </div>
               </div>
             </div>
@@ -582,29 +592,17 @@ export default function Home() {
               <p className="text-[14px] text-[#949494] mb-6">You have unsaved changes in this attendance sheet.</p>
               <div className="flex flex-col gap-2">
                 <button onClick={() => {
-                  if (currentSheet) {
-                    saveSheet(currentSheet);
-                  }
-                  setHasUnsavedChanges(false);
+                  if (currentSheet) saveSheet(currentSheet);
                   setShowExitConfirm(false);
-                  exitCurrentSheet();
-                  setCurrentSheet(null);
-                  setInitialSheetBackup(null);
-                  setActiveModule('home');
+                  goHome();
                   refreshSheets();
                 }} className="w-full bg-[#FFFFFF] hover:bg-[#E5E5E5] text-[#000] font-semibold py-2.5 rounded-full text-[14px] transition-smooth">
                   Save & Exit
                 </button>
                 <button onClick={() => {
-                  if (initialSheetBackup) {
-                    saveSheet(initialSheetBackup);
-                  }
-                  setHasUnsavedChanges(false);
+                  if (initialSheetBackup) saveSheet(initialSheetBackup);
                   setShowExitConfirm(false);
-                  exitCurrentSheet();
-                  setCurrentSheet(null);
-                  setInitialSheetBackup(null);
-                  setActiveModule('home');
+                  goHome();
                   refreshSheets();
                 }} className="w-full bg-[#18181A] hover:bg-[#222] text-[#F87171] border border-[#7F1D1D]/25 font-semibold py-2.5 rounded-full text-[14px] transition-smooth">
                   Exit Without Saving
@@ -625,11 +623,7 @@ export default function Home() {
               <p className="text-[14px] text-[#949494] mb-6">Your temporary upload and OCR progress will be discarded.</p>
               <div className="flex gap-3">
                 <button onClick={() => setShowScreenshotExitConfirm(false)} className="flex-1 bg-[#18181A] hover:bg-[#222] text-[#B0B0B0] font-semibold py-2.5 rounded-full text-[14px] transition-smooth">Continue</button>
-                <button onClick={() => {
-                  setShowScreenshotExitConfirm(false);
-                  setSetupPhase('landing');
-                  setActiveModule('home');
-                }} className="flex-1 bg-[#F87171] hover:bg-[#EF4444] text-[#000] font-semibold py-2.5 rounded-full text-[14px] transition-smooth">Exit</button>
+                <button onClick={() => { setShowScreenshotExitConfirm(false); goHome(); }} className="flex-1 bg-[#F87171] hover:bg-[#EF4444] text-[#000] font-semibold py-2.5 rounded-full text-[14px] transition-smooth">Exit</button>
               </div>
             </div>
           </div>
